@@ -109,7 +109,7 @@ def is_cached(patient_id: str) -> bool:
 
 def add_manual_record(patient_id: str, document_type: str,
                       filename: str, file_size: int,
-                      content_type: str) -> dict:
+                      content_type: str, parsed_data: dict = None) -> dict:
     """
     Store metadata for a manually uploaded document (vaccine card, lab report, etc.).
 
@@ -135,9 +135,38 @@ def add_manual_record(patient_id: str, document_type: str,
         "content_type": content_type,
         "uploaded_at": now,
         "status": "uploaded",
+        "parsed_data": parsed_data
     }
 
     PATIENT_CACHE[patient_id]["manual_records"].append(record)
+    
+    # Merge structured data into unified_data
+    if parsed_data:
+        unified_data = PATIENT_CACHE[patient_id]["unified_data"]
+        
+        if document_type == "vaccine_card":
+            if "diagnoses" not in unified_data:
+                unified_data["diagnoses"] = []
+            
+            for v in parsed_data.get("vaccines", []):
+                # Add as preventive care/diagnosis 
+                unified_data["diagnoses"].append({
+                    "name": f"Vaccine Administered: {v}",
+                    "code": "Z23", # standard ICD-10 for encounter for immunization
+                    "date_of_diagnosis": parsed_data.get("date", now[:10])
+                })
+                
+        elif document_type == "lab_report":
+            if "labs" not in unified_data:
+                unified_data["labs"] = []
+                
+            for lab in parsed_data.get("labs", []):
+                unified_data["labs"].append({
+                    "test_name": lab.get("test_name", "Unknown Test"),
+                    "value": lab.get("value", "N/A"),
+                    "reference_range": lab.get("reference_range", "N/A"),
+                    "date": parsed_data.get("date", now[:10])
+                })
 
     return record
 
@@ -146,7 +175,7 @@ def add_manual_record(patient_id: str, document_type: str,
 # Access token management
 # ---------------------------------------------------------------------------
 
-def create_access_token(patient_id: str, doctor_id: str,
+def create_access_token(patient_id: str, doctor_email: str,
                         duration_minutes: int = 30) -> dict:
     """
     Generate a short-lived access token for a doctor to view patient data.
@@ -158,18 +187,23 @@ def create_access_token(patient_id: str, doctor_id: str,
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(minutes=duration_minutes)
 
+    # Simple lookup logic for doctor_id from email (simulated DB lookup)
+    doctor_id = f"DR-{doctor_email.split('@')[0].replace('dr.', '').upper()}"
+
     ACCESS_TOKEN_STORE[token] = {
         "patient_id": patient_id,
+        "doctor_email": doctor_email,
         "doctor_id": doctor_id,
         "created_at": now.isoformat(),
         "expires_at": expires_at.isoformat(),
         "duration_minutes": duration_minutes,
+        "status": "active",
         "revoked": False,
     }
 
     _log_patient_audit(
         patient_id, "ACCESS_TOKEN_GRANTED", patient_id, "patient",
-        f"Access granted to {doctor_id} for {duration_minutes} minutes"
+        f"Access granted to {doctor_email} for {duration_minutes} minutes"
     )
 
     return {
@@ -189,7 +223,7 @@ def validate_access_token(token: str) -> dict | None:
 
     token_data = ACCESS_TOKEN_STORE[token]
 
-    if token_data.get("revoked"):
+    if token_data.get("revoked") or token_data.get("status") == "revoked":
         return None
 
     expires_at = datetime.fromisoformat(token_data["expires_at"])
@@ -197,6 +231,34 @@ def validate_access_token(token: str) -> dict | None:
         return None
 
     return token_data
+
+def get_active_authorizations(patient_id: str) -> list[dict]:
+    """Return all non-expired, non-revoked active tokens for a patient."""
+    active = []
+    now = datetime.now(timezone.utc)
+    for token, data in ACCESS_TOKEN_STORE.items():
+        if data["patient_id"] == patient_id and not data.get("revoked") and data.get("status") != "revoked":
+            expires_at = datetime.fromisoformat(data["expires_at"])
+            if expires_at > now:
+                # Include token in response for patient reference
+                # Note: Returning raw token string to patient so they can copy it or revoke it.
+                auth_data = data.copy()
+                auth_data["access_token"] = token
+                active.append(auth_data)
+    return active
+
+def revoke_token(patient_id: str, token: str) -> bool:
+    """Revoke an active access token."""
+    if token in ACCESS_TOKEN_STORE and ACCESS_TOKEN_STORE[token]["patient_id"] == patient_id:
+        ACCESS_TOKEN_STORE[token]["revoked"] = True
+        ACCESS_TOKEN_STORE[token]["status"] = "revoked"
+        
+        _log_patient_audit(
+            patient_id, "ACCESS_TOKEN_REVOKED", patient_id, "patient",
+            f"Patient revoked access token manually"
+        )
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------------

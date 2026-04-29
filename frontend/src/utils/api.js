@@ -1,0 +1,113 @@
+// src/utils/api.js
+const API_URL = 'http://localhost:5000/api';
+
+/**
+ * Standard fetch wrapper that automatically includes the Authorization header
+ * and handles 401 Unauthorized responses by clearing the token and redirecting.
+ */
+export async function fetchApi(endpoint, options = {}) {
+  const token = localStorage.getItem('patientToken');
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Remove Content-Type if we are sending FormData (browser sets it automatically with boundary)
+  if (options.body instanceof FormData) {
+    delete headers['Content-Type'];
+  }
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (response.status === 401) {
+    // Unauthorized - token expired or invalid
+    localStorage.removeItem('patientToken');
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Something went wrong');
+  }
+
+  return data;
+}
+
+/**
+ * Auth functions
+ */
+export async function authenticatePatient(patientId, biometricType, biometricData, otp) {
+  return fetchApi('/patient/auth', {
+    method: 'POST',
+    body: JSON.stringify({
+      patient_id: patientId,
+      biometric_type: biometricType,
+      biometric_data: biometricData,
+      otp: otp,
+    }),
+  });
+}
+
+/**
+ * Patient Portal functions
+ */
+export async function fetchHistoricalData(patientId) {
+  return fetchApi(`/patient/${patientId}/fetch-historical`, {
+    method: 'POST',
+  });
+}
+
+export async function getCachedData(patientId) {
+  return fetchApi(`/patient/${patientId}/data`, {
+    method: 'GET',
+  });
+}
+
+export async function uploadManualRecord(patientId, documentType, file) {
+  const formData = new FormData();
+  formData.append('document_type', documentType);
+  formData.append('file', file);
+
+  return fetchApi(`/patient/${patientId}/upload-manual`, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export async function generateAccessToken(patientId, doctorEmail, durationMinutes) {
+  return fetchApi(`/patient/${patientId}/generate-access-token`, {
+    method: 'POST',
+    body: JSON.stringify({
+      doctor_email: doctorEmail,
+      duration_minutes: durationMinutes,
+    }),
+  });
+}
+
+export async function getActiveAuthorizations(patientId) {
+  return fetchApi(`/patient/${patientId}/active-authorizations`, {
+    method: 'GET',
+  });
+}
+
+export async function revokeToken(patientId, accessToken) {
+  return fetchApi(`/patient/${patientId}/revoke-token/${accessToken}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getAuditLog(patientId) {
+  return fetchApi(`/patient/${patientId}/audit-log`, {
+    method: 'GET',
+  });
+}
