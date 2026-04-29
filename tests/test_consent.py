@@ -12,8 +12,8 @@ from core.privacy_model import ConsentPreferences, ConsentLevel, PATIENT_CONSENT
 from core.consent_gateway import apply_consent, apply_consent_by_id
 from core.audit_log import log_access, get_audit_log, get_audit_summary, clear_audit_log, get_stats
 
-PASS = "✅ PASS"
-FAIL = "❌ FAIL"
+PASS = "[PASS]"
+FAIL = "[FAIL]"
 
 
 def make_sample_patient(patient_id="TEST001"):
@@ -193,8 +193,8 @@ if __name__ == "__main__":
     total  = len(results)
     print(f"  Results: {passed}/{total} tests passed")
     if passed == total:
-        print("  🎉 All tests passed! Consent gateway ready for Person B.")
+        print("  [PASS] All tests passed! Consent gateway ready for Person B.")
     else:
-        print("  ⚠️  Some tests failed. Check output above.")
+        print("  [FAIL]  Some tests failed. Check output above.")
     print("="*60 + "\n")
     sys.exit(0 if passed == total else 1)

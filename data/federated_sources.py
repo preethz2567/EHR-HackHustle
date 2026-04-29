@@ -1,217 +1,139 @@
 from data.synthetic_ehr_generator import generate_patient
 from typing import Dict, Any
 
-# Hospital data fragments
+# Hospital data fragments with disparate formats
 HOSPITAL_DATA = {
     "A": {
-        # Hospital A: Neurology specialists
-        # Knows: diagnoses, episodes, imaging
+        # Hospital A: Neurology specialists (Simulates FHIR format)
         "P001": {
-            "diagnoses": [
+            "resourceType": "Bundle",
+            "entry": [
                 {
-                    "code": "I63.9",
-                    "name": "Ischemic stroke, unspecified",
-                    "date_of_diagnosis": "2022-03-15"
+                    "resource": {
+                        "resourceType": "Condition",
+                        "code": {"coding": [{"code": "I63.9", "display": "Ischemic stroke, unspecified"}]},
+                        "onsetDateTime": "2022-03-15"
+                    }
                 },
                 {
-                    "code": "E11.9",
-                    "name": "Type 2 diabetes mellitus without complications",
-                    "date_of_diagnosis": "2010-05-12"
-                }
-            ],
-            "episodes": [
+                    "resource": {
+                        "resourceType": "Condition",
+                        "code": {"coding": [{"code": "E11.9", "display": "Type 2 diabetes mellitus without complications"}]},
+                        "onsetDateTime": "2010-05-12"
+                    }
+                },
                 {
-                    "type": "hospitalization",
-                    "date": "2022-03-15",
-                    "reason": "Acute ischemic stroke",
-                    "outcome": "discharged to home",
-                    "duration_days": 5
+                    "resource": {
+                        "resourceType": "Encounter",
+                        "class": "hospitalization",
+                        "period": {"start": "2022-03-15"},
+                        "reasonCode": [{"text": "Acute ischemic stroke"}],
+                        "hospitalization": {"dischargeDisposition": {"text": "discharged to home"}},
+                        "length": {"value": 5}
+                    }
                 }
             ]
         },
-        "P002": {
-            "diagnoses": [],
-            "episodes": []
-        },
+        "P002": {"resourceType": "Bundle", "entry": []},
         "P003": {
-            "diagnoses": [
+            "resourceType": "Bundle",
+            "entry": [
                 {
-                    "code": "I21.9",
-                    "name": "Myocardial infarction",
-                    "date_of_diagnosis": "2020-06-10"
-                }
-            ],
-            "episodes": [
+                    "resource": {
+                        "resourceType": "Condition",
+                        "code": {"coding": [{"code": "I21.9", "display": "Myocardial infarction"}]},
+                        "onsetDateTime": "2020-06-10"
+                    }
+                },
                 {
-                    "type": "hospitalization",
-                    "date": "2020-06-10",
-                    "reason": "Acute MI",
-                    "outcome": "discharged to home",
-                    "duration_days": 4
+                    "resource": {
+                        "resourceType": "Encounter",
+                        "class": "hospitalization",
+                        "period": {"start": "2020-06-10"},
+                        "reasonCode": [{"text": "Acute MI"}],
+                        "hospitalization": {"dischargeDisposition": {"text": "discharged to home"}},
+                        "length": {"value": 4}
+                    }
                 }
             ]
         },
-        "P004": {"diagnoses": [], "episodes": []},
-        "P005": {"diagnoses": [], "episodes": []}
+        "P004": {"resourceType": "Bundle", "entry": []},
+        "P005": {"resourceType": "Bundle", "entry": []}
     },
     "B": {
-        # Hospital B: Cardiology specialists
-        # Knows: cardiac history, imaging, procedures
+        # Hospital B: Cardiology specialists (Simulates Legacy EHR format)
         "P001": {
-            "diagnoses": [
-                {
-                    "code": "I10",
-                    "name": "Essential hypertension",
-                    "date_of_diagnosis": "2005-06-20"
-                }
+            "DX_LIST": [
+                {"ICD10": "I10", "DESC": "Essential hypertension", "DX_DATE": "2005-06-20"}
             ],
-            "episodes": []
+            "PROCEDURES": []
         },
         "P002": {
-            "diagnoses": [
-                {
-                    "code": "I10",
-                    "name": "Essential hypertension",
-                    "date_of_diagnosis": "2015-01-15"
-                }
+            "DX_LIST": [
+                {"ICD10": "I10", "DESC": "Essential hypertension", "DX_DATE": "2015-01-15"}
             ],
-            "episodes": []
+            "PROCEDURES": []
         },
         "P003": {
-            "diagnoses": [
-                {
-                    "code": "I10",
-                    "name": "Essential hypertension",
-                    "date_of_diagnosis": "2008-03-20"
-                }
+            "DX_LIST": [
+                {"ICD10": "I10", "DESC": "Essential hypertension", "DX_DATE": "2008-03-20"}
             ],
-            "episodes": [
+            "PROCEDURES": [
                 {
-                    "type": "procedure",
-                    "date": "2020-06-15",
-                    "reason": "Cardiac intervention",
-                    "outcome": "stent placed",
-                    "duration_days": 1
+                    "TYPE": "procedure",
+                    "DATE": "2020-06-15",
+                    "REASON": "Cardiac intervention",
+                    "OUTCOME": "stent placed",
+                    "DAYS": 1
                 }
             ]
         },
-        "P004": {"diagnoses": [], "episodes": []},
-        "P005": {"diagnoses": [], "episodes": []}
+        "P004": {"DX_LIST": [], "PROCEDURES": []},
+        "P005": {"DX_LIST": [], "PROCEDURES": []}
     },
     "C": {
-        # Hospital C (Clinic): Primary care
-        # Knows: current medications, recent labs, vitals
+        # Hospital C (Clinic): Primary care (Simulates Custom API format)
         "P001": {
-            "medications": [
-                {
-                    "name": "Aspirin",
-                    "dosage": "100mg daily",
-                    "indication": "Post-stroke prevention",
-                    "start_date": "2022-03-16"
-                },
-                {
-                    "name": "Clopidogrel",
-                    "dosage": "75mg daily",
-                    "indication": "Post-stroke prevention",
-                    "start_date": "2022-03-16"
-                },
-                {
-                    "name": "Metformin",
-                    "dosage": "500mg BID",
-                    "indication": "Type 2 diabetes",
-                    "start_date": "2010-05-12"
-                },
-                {
-                    "name": "Lisinopril",
-                    "dosage": "10mg daily",
-                    "indication": "Hypertension",
-                    "start_date": "2005-06-20"
-                }
+            "meds": [
+                {"med_name": "Aspirin", "dose": "100mg daily", "reason": "Post-stroke prevention", "started": "2022-03-16"},
+                {"med_name": "Clopidogrel", "dose": "75mg daily", "reason": "Post-stroke prevention", "started": "2022-03-16"},
+                {"med_name": "Metformin", "dose": "500mg BID", "reason": "Type 2 diabetes", "started": "2010-05-12"},
+                {"med_name": "Lisinopril", "dose": "10mg daily", "reason": "Hypertension", "started": "2005-06-20"}
             ],
-            "labs": [
-                {
-                    "test_name": "HbA1c",
-                    "value": 7.2,
-                    "date": "2024-01-10",
-                    "reference_range": "< 5.7 (normal)"
-                }
+            "lab_results": [
+                {"name": "HbA1c", "val": 7.2, "date": "2024-01-10", "ref": "< 5.7 (normal)"}
             ]
         },
         "P002": {
-            "medications": [
-                {
-                    "name": "Albuterol",
-                    "dosage": "2 puffs as needed",
-                    "indication": "Asthma",
-                    "start_date": "2015-01-15"
-                },
-                {
-                    "name": "Lisinopril",
-                    "dosage": "10mg daily",
-                    "indication": "Hypertension",
-                    "start_date": "2015-01-15"
-                }
+            "meds": [
+                {"med_name": "Albuterol", "dose": "2 puffs as needed", "reason": "Asthma", "started": "2015-01-15"},
+                {"med_name": "Lisinopril", "dose": "10mg daily", "reason": "Hypertension", "started": "2015-01-15"}
             ],
-            "labs": [
-                {
-                    "test_name": "BP Systolic",
-                    "value": 135,
-                    "date": "2024-01-12",
-                    "reference_range": "< 130 (normal)"
-                }
+            "lab_results": [
+                {"name": "BP Systolic", "val": 135, "date": "2024-01-12", "ref": "< 130 (normal)"}
             ]
         },
         "P003": {
-            "medications": [
-                {
-                    "name": "Atorvastatin",
-                    "dosage": "20mg daily",
-                    "indication": "Cholesterol",
-                    "start_date": "2020-06-20"
-                },
-                {
-                    "name": "Metoprolol",
-                    "dosage": "50mg BID",
-                    "indication": "Heart disease",
-                    "start_date": "2020-06-20"
-                }
+            "meds": [
+                {"med_name": "Atorvastatin", "dose": "20mg daily", "reason": "Cholesterol", "started": "2020-06-20"},
+                {"med_name": "Metoprolol", "dose": "50mg BID", "reason": "Heart disease", "started": "2020-06-20"}
             ],
-            "labs": [
-                {
-                    "test_name": "Troponin",
-                    "value": 0.02,
-                    "date": "2024-01-08",
-                    "reference_range": "< 0.04 (normal)"
-                }
+            "lab_results": [
+                {"name": "Troponin", "val": 0.02, "date": "2024-01-08", "ref": "< 0.04 (normal)"}
             ]
         },
         "P004": {
-            "medications": [
-                {
-                    "name": "Albuterol",
-                    "dosage": "2 puffs as needed",
-                    "indication": "COPD",
-                    "start_date": "2018-06-10"
-                }
+            "meds": [
+                {"med_name": "Albuterol", "dose": "2 puffs as needed", "reason": "COPD", "started": "2018-06-10"}
             ],
-            "labs": []
+            "lab_results": []
         },
         "P005": {
-            "medications": [
-                {
-                    "name": "Insulin Glargine",
-                    "dosage": "20 units daily",
-                    "indication": "Type 1 diabetes",
-                    "start_date": "2015-01-01"
-                }
+            "meds": [
+                {"med_name": "Insulin Glargine", "dose": "20 units daily", "reason": "Type 1 diabetes", "started": "2015-01-01"}
             ],
-            "labs": [
-                {
-                    "test_name": "HbA1c",
-                    "value": 6.8,
-                    "date": "2024-01-05",
-                    "reference_range": "< 5.7 (normal)"
-                }
+            "lab_results": [
+                {"name": "HbA1c", "val": 6.8, "date": "2024-01-05", "ref": "< 5.7 (normal)"}
             ]
         }
     }
@@ -219,14 +141,8 @@ HOSPITAL_DATA = {
 
 def query_hospital(hospital_id: str, patient_id: str) -> Dict[str, Any]:
     """
-    Query a specific hospital for their fragment of patient data
-    
-    Args:
-        hospital_id: "A", "B", or "C"
-        patient_id: "P001", "P002", etc.
-    
-    Returns:
-        Fragment of patient data from that hospital
+    Query a specific hospital for their fragment of patient data.
+    The returned fragment is in the hospital's native format.
     """
     if hospital_id not in HOSPITAL_DATA:
         raise ValueError(f"Unknown hospital: {hospital_id}")
@@ -236,27 +152,88 @@ def query_hospital(hospital_id: str, patient_id: str) -> Dict[str, Any]:
     
     return HOSPITAL_DATA[hospital_id][patient_id]
 
+# --- Normalization Adapters ---
+
+def normalize_hospital_a(raw_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize FHIR-like format to Canonical Format"""
+    normalized = {"diagnoses": [], "episodes": []}
+    for entry in raw_data.get("entry", []):
+        resource = entry.get("resource", {})
+        if resource.get("resourceType") == "Condition":
+            coding = resource.get("code", {}).get("coding", [{}])[0]
+            normalized["diagnoses"].append({
+                "code": coding.get("code", "UNKNOWN"),
+                "name": coding.get("display", "Unknown"),
+                "date_of_diagnosis": resource.get("onsetDateTime", "")
+            })
+        elif resource.get("resourceType") == "Encounter":
+            reason = resource.get("reasonCode", [{}])[0].get("text", "Unknown")
+            outcome = resource.get("hospitalization", {}).get("dischargeDisposition", {}).get("text", "Unknown")
+            normalized["episodes"].append({
+                "type": resource.get("class", "unknown"),
+                "date": resource.get("period", {}).get("start", ""),
+                "reason": reason,
+                "outcome": outcome,
+                "duration_days": resource.get("length", {}).get("value", 0)
+            })
+    return normalized
+
+def normalize_hospital_b(raw_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize Legacy EHR format to Canonical Format"""
+    normalized = {"diagnoses": [], "episodes": []}
+    for dx in raw_data.get("DX_LIST", []):
+        normalized["diagnoses"].append({
+            "code": dx.get("ICD10", "UNKNOWN"),
+            "name": dx.get("DESC", "Unknown"),
+            "date_of_diagnosis": dx.get("DX_DATE", "")
+        })
+    for proc in raw_data.get("PROCEDURES", []):
+        normalized["episodes"].append({
+            "type": proc.get("TYPE", "unknown"),
+            "date": proc.get("DATE", ""),
+            "reason": proc.get("REASON", "Unknown"),
+            "outcome": proc.get("OUTCOME", "Unknown"),
+            "duration_days": proc.get("DAYS", 0)
+        })
+    return normalized
+
+def normalize_hospital_c(raw_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize Custom API format to Canonical Format"""
+    normalized = {"medications": [], "labs": []}
+    for med in raw_data.get("meds", []):
+        normalized["medications"].append({
+            "name": med.get("med_name", "Unknown"),
+            "dosage": med.get("dose", "Unknown"),
+            "indication": med.get("reason", "Unknown"),
+            "start_date": med.get("started", "")
+        })
+    for lab in raw_data.get("lab_results", []):
+        normalized["labs"].append({
+            "test_name": lab.get("name", "Unknown"),
+            "value": lab.get("val", 0),
+            "date": lab.get("date", ""),
+            "reference_range": lab.get("ref", "Unknown")
+        })
+    return normalized
+
+# --- Core Federated Query Engine ---
+
 def federated_query(patient_id: str) -> Dict[str, Any]:
     """
-    Query all 3 hospitals and merge their data fragments
-    
-    Simulates real federated healthcare system:
-    - Hospital A: Neurology records (diagnoses, episodes)
-    - Hospital B: Cardiology records (cardiac procedures)
-    - Hospital C: Primary care records (medications, labs)
-    
-    Args:
-        patient_id: Patient identifier (e.g., "P001")
-    
-    Returns:
-        Merged patient data from all 3 hospitals
+    Query all 3 hospitals, normalize their disparate data formats, 
+    and merge into a canonical patient record.
     """
-    # Get fragments from each hospital
-    fragment_a = query_hospital("A", patient_id)
-    fragment_b = query_hospital("B", patient_id)
-    fragment_c = query_hospital("C", patient_id)
+    # 1. Fetch raw fragments
+    raw_a = query_hospital("A", patient_id)
+    raw_b = query_hospital("B", patient_id)
+    raw_c = query_hospital("C", patient_id)
     
-    # Initialize merged patient object with patient ID
+    # 2. Normalize fragments (Data Harmonization)
+    norm_a = normalize_hospital_a(raw_a)
+    norm_b = normalize_hospital_b(raw_b)
+    norm_c = normalize_hospital_c(raw_c)
+    
+    # 3. Initialize merged canonical patient object
     merged_patient = {
         "patient_id": patient_id,
         "diagnoses": [],
@@ -266,27 +243,17 @@ def federated_query(patient_id: str) -> Dict[str, Any]:
         "allergies": []  # Not stored in federated system
     }
     
-    # Merge diagnoses from A and B
-    if "diagnoses" in fragment_a:
-        merged_patient["diagnoses"].extend(fragment_a["diagnoses"])
-    if "diagnoses" in fragment_b:
-        merged_patient["diagnoses"].extend(fragment_b["diagnoses"])
+    # 4. Merge normalized data
+    merged_patient["diagnoses"].extend(norm_a.get("diagnoses", []))
+    merged_patient["diagnoses"].extend(norm_b.get("diagnoses", []))
     
-    # Merge medications from C
-    if "medications" in fragment_c:
-        merged_patient["medications"] = fragment_c["medications"]
+    merged_patient["medications"] = norm_c.get("medications", [])
+    merged_patient["labs"] = norm_c.get("labs", [])
     
-    # Merge labs from C
-    if "labs" in fragment_c:
-        merged_patient["labs"] = fragment_c["labs"]
+    merged_patient["episodes"].extend(norm_a.get("episodes", []))
+    merged_patient["episodes"].extend(norm_b.get("episodes", []))
     
-    # Merge episodes from A and B
-    if "episodes" in fragment_a:
-        merged_patient["episodes"].extend(fragment_a["episodes"])
-    if "episodes" in fragment_b:
-        merged_patient["episodes"].extend(fragment_b["episodes"])
-    
-    # Remove duplicates from diagnoses (by code)
+    # 5. Remove duplicates from diagnoses (by code)
     seen_codes = set()
     unique_diagnoses = []
     for diag in merged_patient["diagnoses"]:
@@ -299,9 +266,8 @@ def federated_query(patient_id: str) -> Dict[str, Any]:
 
 # For testing
 if __name__ == "__main__":
-    print("Testing Federated Gateway...\n")
+    print("Testing Federated Gateway with Normalization...\n")
     
-    # Test federated query for P001
     patient_data = federated_query("P001")
     
     print(f"Patient {patient_data['patient_id']}:")
