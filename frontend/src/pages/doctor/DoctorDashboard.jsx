@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Timer, Download, LogOut, ShieldAlert, Loader } from 'lucide-react';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
-import { getPatientData } from '../../utils/doctorApi';
+import { getPatientData, exportReport } from '../../utils/doctorApi';
 
 import PatientSummary from '../../components/doctor/PatientSummary';
 import RiskAssessment from '../../components/doctor/RiskAssessment';
@@ -23,17 +21,17 @@ export default function DoctorDashboard() {
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
 
   const patientId = localStorage.getItem('currentPatientId');
-  const sessionToken = localStorage.getItem('doctorSessionToken');
+  const sessionId = localStorage.getItem('doctorSessionId');
 
   useEffect(() => {
-    if (!patientId || !sessionToken) {
+    if (!patientId || !sessionId) {
       navigate('/doctor/access');
       return;
     }
 
     const fetchData = async () => {
       try {
-        const res = await getPatientData(patientId, sessionToken);
+        const res = await getPatientData();
         setPatientData(res.patient_data);
       } catch (err) {
         setError(err.message || 'Failed to load patient data');
@@ -46,7 +44,7 @@ export default function DoctorDashboard() {
     };
 
     fetchData();
-  }, [patientId, sessionToken, navigate]);
+  }, [patientId, sessionId, navigate]);
 
   useEffect(() => {
     if (timeLeft <= 0) {
@@ -63,6 +61,7 @@ export default function DoctorDashboard() {
 
   const handleLogout = (message = 'Session ended') => {
     localStorage.removeItem('doctorSessionToken');
+    localStorage.removeItem('doctorSessionId');
     localStorage.removeItem('currentPatientId');
     // We keep doctorToken so they are still logged in as doctor, just need to request new patient access
     alert(message);
@@ -76,18 +75,18 @@ export default function DoctorDashboard() {
   };
 
   const handleExportPDF = async () => {
-    if (!dashboardRef.current) return;
     try {
-      const canvas = await html2canvas(dashboardRef.current, { scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`${patientId}_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+      const blob = await exportReport();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${patientId}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Failed to generate PDF');
+      alert('Failed to generate PDF: ' + err.message);
     }
   };
 

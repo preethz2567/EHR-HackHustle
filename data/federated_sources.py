@@ -101,7 +101,21 @@ HOSPITAL_DATA = {
                 {"med_name": "Lisinopril", "dose": "10mg daily", "reason": "Hypertension", "started": "2005-06-20"}
             ],
             "lab_results": [
-                {"name": "HbA1c", "val": 7.2, "date": "2024-01-10", "ref": "< 5.7 (normal)"}
+                {"name": "HbA1c", "val": 6.8, "date": "2023-07-15", "ref": "< 5.7 (normal)"},
+                {"name": "HbA1c", "val": 6.9, "date": "2023-09-10", "ref": "< 5.7 (normal)"},
+                {"name": "HbA1c", "val": 7.0, "date": "2023-11-12", "ref": "< 5.7 (normal)"},
+                {"name": "HbA1c", "val": 7.2, "date": "2024-01-10", "ref": "< 5.7 (normal)"},
+                {"name": "HbA1c", "val": 7.5, "date": "2024-03-08", "ref": "< 5.7 (normal)"},
+                {"name": "BP Systolic", "val": 128, "date": "2023-07-15", "ref": "< 130 (normal)"},
+                {"name": "BP Systolic", "val": 132, "date": "2023-09-10", "ref": "< 130 (normal)"},
+                {"name": "BP Systolic", "val": 138, "date": "2023-11-12", "ref": "< 130 (normal)"},
+                {"name": "BP Systolic", "val": 142, "date": "2024-01-10", "ref": "< 130 (normal)"},
+                {"name": "BP Systolic", "val": 148, "date": "2024-03-08", "ref": "< 130 (normal)"},
+                {"name": "eGFR", "val": 72, "date": "2023-07-15", "ref": "> 60 (normal)"},
+                {"name": "eGFR", "val": 68, "date": "2023-09-10", "ref": "> 60 (normal)"},
+                {"name": "eGFR", "val": 64, "date": "2023-11-12", "ref": "> 60 (normal)"},
+                {"name": "eGFR", "val": 58, "date": "2024-01-10", "ref": "> 60 (normal)"},
+                {"name": "eGFR", "val": 52, "date": "2024-03-08", "ref": "> 60 (normal)"}
             ]
         },
         "P002": {

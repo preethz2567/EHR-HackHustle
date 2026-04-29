@@ -42,9 +42,7 @@ from api.auth import (
     generate_session_token,
     decode_token,
     token_required,
-    AUDIT_LOG,
     PATIENT_BIOMETRIC_STORE,
-    _log_audit,
 )
 from api.patient_cache import (
     cache_patient_data,
@@ -53,9 +51,20 @@ from api.patient_cache import (
     add_manual_record,
     create_access_token,
     validate_access_token,
-    get_patient_audit_log,
-    _log_patient_audit,
     PATIENT_CACHE,
+)
+from api.audit import (
+    log_patient_action,
+    log_doctor_action,
+    get_patient_audit_log,
+    get_doctor_audit_log,
+    get_admin_audit_log
+)
+from api.session import (
+    DoctorSession,
+    ACTIVE_SESSIONS,
+    init_session_manager,
+    session_required,
 )
 from concurrent.futures import ThreadPoolExecutor
 
@@ -70,6 +79,9 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
     CORS(app)
+
+    # Initialize the session background cleanup
+    init_session_manager()
 
     # -------------------------------------------------------------------
     # HEALTH CHECK
@@ -182,43 +194,62 @@ def create_app():
         return jsonify(result), status_code
 
     # -------------------------------------------------------------------
-    # DOCTOR SESSION TOKEN (30-min patient data access)
+    # DOCTOR SESSION MANAGEMENT
     # -------------------------------------------------------------------
 
-    @app.route("/api/doctor/session", methods=["POST"])
+    @app.route("/api/doctor/start-session", methods=["POST"])
     @token_required(allowed_roles=["doctor"])
-    def doctor_session():
+    def start_session():
         """
-        Generate a 30-minute session token for doctor to access patient data.
-
-        Requires: Doctor JWT in Authorization header.
-
-        Request JSON:
-            {
-                "patient_id": "P001"
-            }
-
-        Response:
-            {
-                "success": true,
-                "session_token": "<jwt>",
-                "patient_id": "P001",
-                "expires_in": 1800,
-                "message": "Session granted for 30 minutes"
-            }
+        Start a new 30-minute session for a doctor to access a patient's data.
         """
-        data = request.get_json(silent=True)
-        if not data or "patient_id" not in data:
-            return jsonify({
-                "success": False,
-                "message": "Missing required field: patient_id",
-            }), 400
-
         doctor_id = g.current_user["sub"]
-        result = generate_session_token(doctor_id, data["patient_id"])
+        data = request.get_json(silent=True) or {}
+        
+        access_token = data.get("access_token")
+        
+        if not access_token:
+            return jsonify({"status": "error", "message": "Missing access_token"}), 400
+            
+        token_data = validate_access_token(access_token)
+        if not token_data or token_data.get("doctor_id") != doctor_id:
+            return jsonify({"status": "error", "message": "Access denied or token expired"}), 401
+            
+        patient_id = data.get("patient_id") or token_data.get("patient_id")
+        
+        # Create explicit session
+        session = DoctorSession(doctor_id, patient_id, access_token)
+        ACTIVE_SESSIONS[session.session_id] = session
+        
+        # Log the session start
+        log_doctor_action(
+            doctor_id, "start_session", patient_id,
+            {"message": "Doctor started a session using patient access token"}
+        )
+        
+        return jsonify({
+            "status": "success",
+            "session_id": session.session_id,
+            "expires_at_timestamp": session.session_expiry.isoformat(),
+            "expires_in_minutes": 30
+        }), 201
 
-        status_code = 200 if result["success"] else 404
-        return jsonify(result), status_code
+    @app.route("/api/doctor/session-status", methods=["GET"])
+    @token_required(allowed_roles=["doctor"])
+    def session_status():
+        """Check if session is valid."""
+        session_id = request.headers.get("Session-Id") or request.args.get("session_id")
+        if not session_id:
+            return jsonify({"status": "error", "message": "Missing Session-Id"}), 400
+            
+        session = ACTIVE_SESSIONS.get(session_id)
+        if session and session.is_valid():
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            rem = (session.session_expiry - now).total_seconds()
+            return jsonify({"status": "active", "expires_in_seconds": int(rem)}), 200
+        else:
+            return jsonify({"status": "expired", "message": "Session ended"}), 200
 
     # -------------------------------------------------------------------
     # PATIENT DATA — legacy self-access (kept for backward compat)
@@ -308,13 +339,13 @@ def create_app():
         cache_info = cache_patient_data(patient_id, unified_data)
 
         # Audit
-        _log_patient_audit(
-            patient_id, "FETCH_HISTORICAL", patient_id, "patient",
-            f"Fetched from providers A,B,C. {cache_info['records_count']} records cached."
-        )
-        _log_audit(
-            "FETCH_HISTORICAL", patient_id,
-            f"Patient fetched historical data. {cache_info['records_count']} records.", True
+        log_patient_action(
+            patient_id, 
+            "fetch_data", 
+            {
+                "message": "Fetched historical data from providers A, B, C",
+                "records_count": cache_info['records_count']
+            }
         )
 
         return jsonify({
@@ -362,9 +393,10 @@ def create_app():
                 "data_cached": False,
             }), 404
 
-        _log_patient_audit(
-            patient_id, "DATA_ACCESS", patient_id, "patient",
-            "Patient viewed their cached EHR data."
+        log_patient_action(
+            patient_id, 
+            "fetch_data", 
+            {"message": "Patient viewed their cached EHR data."}
         )
 
         return jsonify({
@@ -520,9 +552,10 @@ def create_app():
                 parsed_data=parsed_data
             )
 
-        _log_patient_audit(
-            patient_id, "MANUAL_UPLOAD", patient_id, "patient",
-            f"Uploaded {document_type}: {record['filename']}"
+        log_patient_action(
+            patient_id, 
+            "upload_report", 
+            {"message": f"Uploaded {document_type}: {record['filename']}"}
         )
 
         return jsonify({
@@ -622,7 +655,7 @@ def create_app():
             return jsonify({"status": "error", "message": "Token not found or unauthorized"}), 404
 
     # -------------------------------------------------------------------
-    # 5. PATIENT-SPECIFIC AUDIT LOG
+    # 5. AUDIT LOG ENDPOINTS
     # -------------------------------------------------------------------
 
     @app.route("/api/patient/<patient_id>/audit-log", methods=["GET"])
@@ -630,22 +663,6 @@ def create_app():
     def patient_audit_log(patient_id):
         """
         View all access events for a specific patient.
-
-        Requires: Patient JWT. Patients can only view their own audit log.
-
-        Query params:
-            ?limit=50  (default 50)
-
-        Response:
-            {
-                "success": true,
-                "patient_id": "P001",
-                "count": 5,
-                "entries": [
-                    {"event_type": "ACCESS_TOKEN_GRANTED", "actor_id": "P001", ...},
-                    ...
-                ]
-            }
         """
         token_patient = g.current_user["sub"]
         if token_patient != patient_id:
@@ -661,7 +678,30 @@ def create_app():
             "success": True,
             "patient_id": patient_id,
             "count": len(entries[:limit]),
-            "entries": entries[:limit],
+            "audit_log": entries[:limit],
+        }), 200
+
+    @app.route("/api/doctor/<doctor_id>/audit-log", methods=["GET"])
+    @token_required(allowed_roles=["doctor"])
+    def doctor_audit_log(doctor_id):
+        """
+        View all access events performed by a specific doctor.
+        """
+        token_doctor = g.current_user["sub"]
+        if token_doctor != doctor_id:
+            return jsonify({
+                "success": False,
+                "message": "Access denied. You can only view your own audit log.",
+            }), 403
+
+        limit = request.args.get("limit", 50, type=int)
+        entries = get_doctor_audit_log(doctor_id)
+
+        return jsonify({
+            "success": True,
+            "doctor_id": doctor_id,
+            "count": len(entries[:limit]),
+            "audit_log": entries[:limit],
         }), 200
 
     # -------------------------------------------------------------------
@@ -679,28 +719,22 @@ def create_app():
             ]
         return patient_data
 
+    # -------------------------------------------------------------------
+    # DOCTOR PATIENT DATA ACCESS
+    # -------------------------------------------------------------------
+
     @app.route("/api/doctor/patient-data", methods=["GET"])
     @token_required(allowed_roles=["doctor"])
+    @session_required
     def doctor_patient_data():
         """
-        Doctor retrieves patient data.
-
-        Requires: Doctor JWT in Authorization header.
-        Headers:
-            patient_id: "P001"
-            access_token: "<share_token>"
+        Doctor views full patient EHR data. Requires valid Session-Id.
         """
         doctor_id = g.current_user["sub"]
-        patient_id = request.headers.get("Patient-Id")
-        access_token = request.headers.get("Access-Token")
+        patient_id = g.doctor_session.patient_id
+        access_token = g.doctor_session.access_token
 
-        if not patient_id or not access_token:
-            return jsonify({
-                "status": "error",
-                "message": "Missing Patient-Id or Access-Token in headers."
-            }), 400
-
-        # Validate access token
+        # Access token might have been revoked mid-session
         token_data = validate_access_token(access_token)
         if not token_data or token_data.get("doctor_id") != doctor_id or token_data.get("patient_id") != patient_id:
             return jsonify({
@@ -708,25 +742,28 @@ def create_app():
                 "message": "Access denied or token expired"
             }), 401
 
-        # Retrieve patient_cache
         cached = get_cached_data(patient_id)
         if not cached:
             return jsonify({
                 "status": "error",
-                "message": "Patient data not found in cache."
+                "message": "Patient data not found in cache. Ensure it has been fetched."
             }), 404
 
         patient_data = cached["unified_data"]
-        
-        # Apply consent filtering
+
+        # Apply Consent Filtering
         filtered_data = apply_consent(patient_data)
 
-        # Audit Log
+        # Audit Log Event
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc).isoformat()
         log_msg = f"Doctor {doctor_id} accessed patient {patient_id} data at {now}, token: {access_token}"
-        _log_audit("DOCTOR_ACCESS", doctor_id, log_msg, True)
-        _log_patient_audit(patient_id, "DOCTOR_ACCESS", doctor_id, "doctor", log_msg)
+        log_doctor_action(
+            doctor_id, 
+            "access_patient", 
+            patient_id, 
+            {"message": f"Doctor accessed patient data", "access_token": access_token}
+        )
 
         return jsonify({
             "status": "success",
@@ -737,21 +774,49 @@ def create_app():
     # DOCTOR ANALYZE PATIENT DATA (AI AGENTS)
     # -------------------------------------------------------------------
 
+    def run_analysis_agents(patient_id, patient_data):
+        """Helper to run the parallel agents and cache the result."""
+        from api.agents import agent_risk, agent_meds, agent_episodes, agent_labs, orchestrator
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            f_risk = executor.submit(agent_risk, patient_data)
+            f_meds = executor.submit(agent_meds, patient_data)
+            f_episodes = executor.submit(agent_episodes, patient_data)
+            f_labs = executor.submit(agent_labs, patient_data)
+
+            risk_output = f_risk.result()
+            meds_output = f_meds.result()
+            episodes_output = f_episodes.result()
+            labs_output = f_labs.result()
+
+        orchestrator_output = orchestrator(risk_output, meds_output, episodes_output, labs_output)
+
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        
+        combined_response = {
+            "agent_outputs": {
+                "risk": risk_output,
+                "medications": meds_output,
+                "episodes": episodes_output,
+                "labs": labs_output
+            },
+            "orchestrator_synthesis": orchestrator_output,
+            "analysis_timestamp": now,
+            "status": "success"
+        }
+        ANALYSIS_CACHE[patient_id] = combined_response
+        return combined_response
+
     @app.route("/api/doctor/analyze-patient", methods=["POST"])
     @token_required(allowed_roles=["doctor"])
+    @session_required
     def analyze_patient():
         """
         Run 4 AI agents in parallel and synthesize with orchestrator.
         """
         doctor_id = g.current_user["sub"]
-        patient_id = request.headers.get("Patient-Id")
-        access_token = request.headers.get("Access-Token")
-
-        if not patient_id or not access_token:
-            return jsonify({
-                "status": "error",
-                "message": "Missing Patient-Id or Access-Token in headers."
-            }), 400
+        patient_id = g.doctor_session.patient_id
+        access_token = g.doctor_session.access_token
 
         token_data = validate_access_token(access_token)
         if not token_data or token_data.get("doctor_id") != doctor_id or token_data.get("patient_id") != patient_id:
@@ -774,45 +839,17 @@ def create_app():
         patient_data = apply_consent(cached["unified_data"])
 
         try:
-            from api.agents import agent_risk, agent_meds, agent_episodes, agent_labs, orchestrator
-            
-            # Run 4 Agents in parallel
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                f_risk = executor.submit(agent_risk, patient_data)
-                f_meds = executor.submit(agent_meds, patient_data)
-                f_episodes = executor.submit(agent_episodes, patient_data)
-                f_labs = executor.submit(agent_labs, patient_data)
-
-                risk_output = f_risk.result()
-                meds_output = f_meds.result()
-                episodes_output = f_episodes.result()
-                labs_output = f_labs.result()
-
-            # Run Orchestrator
-            orchestrator_output = orchestrator(risk_output, meds_output, episodes_output, labs_output)
-
-            from datetime import datetime, timezone
-            now = datetime.now(timezone.utc).isoformat()
-            
-            combined_response = {
-                "agent_outputs": {
-                    "risk": risk_output,
-                    "medications": meds_output,
-                    "episodes": episodes_output,
-                    "labs": labs_output
-                },
-                "orchestrator_synthesis": orchestrator_output,
-                "analysis_timestamp": now,
-                "status": "success"
-            }
-
-            # Cache the result
-            ANALYSIS_CACHE[patient_id] = combined_response
+            combined_response = run_analysis_agents(patient_id, patient_data)
 
             # Log
-            log_msg = f"Doctor {doctor_id} triggered analysis for patient {patient_id} at {now}"
-            _log_audit("DOCTOR_ANALYSIS", doctor_id, log_msg, True)
-            _log_patient_audit(patient_id, "DOCTOR_ANALYSIS", doctor_id, "doctor", log_msg)
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc).isoformat()
+            log_doctor_action(
+                doctor_id, 
+                "analyze_patient", 
+                patient_id, 
+                {"message": f"Doctor triggered AI analysis"}
+            )
 
             return jsonify(combined_response), 200
 
@@ -823,35 +860,191 @@ def create_app():
             }), 500
 
     # -------------------------------------------------------------------
-    # AUDIT LOG
+    # DOCTOR DASHBOARD DATA FORMATTER
     # -------------------------------------------------------------------
 
-    @app.route("/api/audit/log", methods=["GET"])
-    @token_required(allowed_roles=["doctor", "patient"])
-    def audit_log():
+    def _build_dashboard_dict(patient_id, patient_data, analysis):
         """
-        View audit trail. Patients see only their own events.
-        Doctors see all events.
-
-        Query params:
-            ?limit=20  (default 50)
+        Pure data-formatting helper. Returns the dashboard dict.
+        Shared by the JSON endpoint and the PDF export endpoint.
         """
-        limit = request.args.get("limit", 50, type=int)
-        user = g.current_user
-        role = user.get("role")
+        # 1. Patient Summary
+        patient_summary = {
+            "patient_id": patient_id,
+            "age": patient_data.get("age", "Unknown"),
+            "gender": patient_data.get("gender", "Unknown"),
+            "allergies": patient_data.get("allergies", []),
+            "diagnoses_count": len(patient_data.get("diagnoses", [])),
+            "medications_count": len(patient_data.get("medications", [])),
+            "lab_tests_count": len(patient_data.get("labs", []))
+        }
 
-        if role == "patient":
-            # Filter to only this patient's events
-            patient_id = user["sub"]
-            entries = [e for e in AUDIT_LOG if e.get("actor_id") == patient_id]
-        else:
-            entries = AUDIT_LOG
+        # 2. Risk Assessment
+        risk_agent = analysis["agent_outputs"]["risk"]
+        meds_agent = analysis["agent_outputs"]["medications"]
 
-        # Return most recent first
+        immediate_risks = []
+        for r in risk_agent.get("high_risk_conditions", []):
+            immediate_risks.append({"condition": r.get("condition"), "level": "High"})
+        for r in risk_agent.get("moderate_risk_conditions", []):
+            immediate_risks.append({"condition": r.get("condition"), "level": "Moderate"})
+
+        risk_assessment = {
+            "immediate_risks": immediate_risks,
+            "drug_interactions": meds_agent.get("interactions_found", []),
+            "contraindications": []
+        }
+
+        # 3. Health Trends
+        hba1c_data, bp_data, egfr_data = [], [], []
+        for lab in patient_data.get("labs", []):
+            test_name = str(lab.get("test_name", "")).lower()
+            date_str = lab.get("date", "")
+            if not date_str:
+                continue
+            val = lab.get("value")
+            if "hba1c" in test_name:
+                hba1c_data.append({"date": date_str, "value": val})
+            elif "systolic" in test_name or "bp systolic" in test_name:
+                bp_data.append({"date": date_str, "value": val})
+            elif "egfr" in test_name:
+                egfr_data.append({"date": date_str, "value": val})
+
+        hba1c_data.sort(key=lambda x: x["date"])
+        bp_data.sort(key=lambda x: x["date"])
+        egfr_data.sort(key=lambda x: x["date"])
+
+        health_trends = {"hba1c": hba1c_data, "bp": bp_data, "egfr": egfr_data}
+
+        # 4. Recommendations
+        synth = analysis["orchestrator_synthesis"]
+        recommendations = {
+            "clinical_summary": synth.get("clinical_summary"),
+            "immediate_priorities": synth.get("immediate_priorities"),
+            "key_risk_signals": synth.get("key_risk_signals"),
+            "recommended_actions": synth.get("recommended_actions")
+        }
+
+        return {
+            "patient_summary": patient_summary,
+            "risk_assessment": risk_assessment,
+            "health_trends": health_trends,
+            "recommendations": recommendations,
+            "analysis_timestamp": analysis["analysis_timestamp"],
+            "status": "success"
+        }
+
+    @app.route("/api/doctor/dashboard-data", methods=["GET"])
+    @token_required(allowed_roles=["doctor"])
+    @session_required
+    def dashboard_data():
+        """
+        Format patient data and analysis results for the dashboard UI.
+        """
+        doctor_id = g.current_user["sub"]
+        patient_id = g.doctor_session.patient_id
+        access_token = g.doctor_session.access_token
+
+        token_data = validate_access_token(access_token)
+        if not token_data or token_data.get("doctor_id") != doctor_id or token_data.get("patient_id") != patient_id:
+            return jsonify({"status": "error", "message": "Access denied"}), 401
+
+        cached = get_cached_data(patient_id)
+        if not cached:
+            return jsonify({"status": "error", "message": "Patient data not found in cache."}), 404
+
+        patient_data = apply_consent(cached["unified_data"])
+
+        if patient_id not in ANALYSIS_CACHE:
+            try:
+                run_analysis_agents(patient_id, patient_data)
+            except Exception as e:
+                return jsonify({"status": "error", "message": f"Analysis failed: {str(e)}"}), 500
+
+        result = _build_dashboard_dict(patient_id, patient_data, ANALYSIS_CACHE[patient_id])
+
+        log_doctor_action(
+            doctor_id, "access_dashboard", patient_id,
+            {"message": "Doctor accessed dashboard data"}
+        )
+
+        return jsonify(result), 200
+
+    # -------------------------------------------------------------------
+    # DOCTOR PDF EXPORT
+    # -------------------------------------------------------------------
+
+    @app.route("/api/doctor/export-report", methods=["POST"])
+    @token_required(allowed_roles=["doctor"])
+    @session_required
+    def export_report():
+        """
+        Generate and return a PDF medical report for the patient.
+        """
+        from flask import send_file
+        from api.pdf_generator import generate_medical_report_pdf
+
+        doctor_id = g.current_user["sub"]
+        doctor_name = g.current_user.get("name", doctor_id)
+        patient_id = g.doctor_session.patient_id
+        access_token = g.doctor_session.access_token
+
+        token_data = validate_access_token(access_token)
+        if not token_data or token_data.get("doctor_id") != doctor_id or token_data.get("patient_id") != patient_id:
+            return jsonify({"status": "error", "message": "Access denied"}), 401
+
+        cached = get_cached_data(patient_id)
+        if not cached:
+            return jsonify({"status": "error", "message": "Patient data not found in cache."}), 404
+
+        patient_data = apply_consent(cached["unified_data"])
+
+        if patient_id not in ANALYSIS_CACHE:
+            try:
+                run_analysis_agents(patient_id, patient_data)
+            except Exception as e:
+                return jsonify({"status": "error", "message": f"Analysis failed: {str(e)}"}), 500
+
+        dashboard = _build_dashboard_dict(patient_id, patient_data, ANALYSIS_CACHE[patient_id])
+
+        # Generate PDF
+        pdf_buf = generate_medical_report_pdf(dashboard, doctor_name=doctor_name)
+
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"Patient_{patient_id}_Report_{ts}.pdf"
+
+        log_doctor_action(
+            doctor_id, "export_report", patient_id,
+            {"message": f"Doctor exported PDF report", "filename": filename}
+        )
+
+        return send_file(
+            pdf_buf,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=filename
+        )
+
+    @app.route("/api/admin/audit-log", methods=["GET"])
+    def admin_audit_log():
+        """
+        View all audit entries (system admin).
+        """
+        limit = request.args.get("limit", 100, type=int)
+        
+        filters = {}
+        if request.args.get("user_id"):
+            filters["user_id"] = request.args.get("user_id")
+        if request.args.get("action"):
+            filters["action"] = request.args.get("action")
+            
+        entries = get_admin_audit_log(filters)
+
         return jsonify({
             "success": True,
-            "count": len(entries[-limit:]),
-            "entries": list(reversed(entries[-limit:])),
+            "total_entries": len(entries[:limit]),
+            "audit_log": entries[:limit],
         }), 200
 
     # -------------------------------------------------------------------

@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { Fingerprint, ScanFace, ScanLine, Loader, ShieldAlert } from 'lucide-react';
+import { Fingerprint, CheckCircle2, ShieldCheck, HeartPulse } from 'lucide-react';
 import { authenticatePatient } from '../utils/api';
+import './PatientAuth.css';
 
 export default function BiometricAuth() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [type, setType] = useState('fingerprint');
   const [scanning, setScanning] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
   // Protect this route from direct access
@@ -17,19 +18,30 @@ export default function BiometricAuth() {
 
   const { patientId, otp } = location.state;
 
-  const handleScan = async () => {
+  useEffect(() => {
+    // Auto-start scanning when component mounts
+    startScan();
+  }, []);
+
+  const startScan = () => {
     setScanning(true);
     setError('');
 
     // Simulate 2 second scanning process
     setTimeout(async () => {
       try {
-        const mockBiometricData = `${patientId}-${type}-template`;
-        const res = await authenticatePatient(patientId, type, mockBiometricData, otp);
+        const mockBiometricData = `${patientId}-fingerprint-template`;
+        const res = await authenticatePatient(patientId, 'fingerprint', mockBiometricData, otp);
         
         if (res.success && res.token) {
           localStorage.setItem('patientToken', res.token);
-          navigate('/dashboard');
+          setScanning(false);
+          setSuccess(true);
+          
+          // Wait 1.5s on success screen before redirecting
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 1500);
         } else {
           setError(res.message || 'Authentication failed');
           setScanning(false);
@@ -41,72 +53,91 @@ export default function BiometricAuth() {
     }, 2000);
   };
 
-  const getIcon = () => {
-    if (type === 'fingerprint') return <Fingerprint size={64} className="scanner-icon" />;
-    if (type === 'facial') return <ScanFace size={64} className="scanner-icon" />;
-    return <ScanLine size={64} className="scanner-icon" />;
-  };
-
-  const getInstructions = () => {
-    if (type === 'fingerprint') return 'Place your finger on the scanner';
-    if (type === 'facial') return 'Look directly at the camera';
-    return 'Position your eyes within the frame';
-  };
-
   return (
-    <div className="auth-layout">
-      <div className="auth-card" style={{ textAlign: 'center' }}>
-        <h2>Biometric Verification</h2>
-        <p className="text-muted mt-2 mb-6">Confirm your identity securely</p>
+    <div className="auth-page-container">
+      {/* Left Side - Hero Image */}
+      <div className="auth-hero-section">
+        <div className="auth-hero-overlay"></div>
+        <img 
+          src="https://images.unsplash.com/photo-1576091160550-2173ff9e5eb3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+          alt="Healthcare Security" 
+          className="auth-hero-image"
+        />
+        <div className="auth-hero-content">
+          <h2>Empowering Your Healthcare Journey</h2>
+          <p>Access your medical records securely, manage your health data, and connect seamlessly with your care team.</p>
+        </div>
+      </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm text-left">
-            <ShieldAlert size={16} className="inline mr-2" />
-            {error}
+      {/* Right Side - Biometric Form */}
+      <div className="auth-form-section">
+        <div className="auth-form-header">
+          <div className="logo-container">
+            <HeartPulse className="text-blue" size={32} />
+            <span className="logo-text">HealthBridge <span className="text-teal">India</span></span>
           </div>
-        )}
-
-        <div className="form-group" style={{ textAlign: 'left' }}>
-          <label>Select Verification Method</label>
-          <select 
-            value={type} 
-            onChange={(e) => setType(e.target.value)}
-            disabled={scanning}
-          >
-            <option value="fingerprint">Fingerprint Scan</option>
-            <option value="facial">Facial Recognition</option>
-            <option value="iris">Iris Scan</option>
-          </select>
+          <p className="tagline">Your Health, Your Control</p>
         </div>
 
-        <div className="scanner-container">
-          {getIcon()}
-          {scanning && <div className="scanner-line"></div>}
-          <h3 className="mt-4">{getInstructions()}</h3>
-          <p className="text-muted text-sm mt-2">
-            {scanning ? 'Verifying biometrics...' : 'Ready to scan'}
-          </p>
+        <div className="auth-form-container text-center">
+          <div className="fade-in">
+            <h3>Two-Factor Authentication</h3>
+            <p className="subtitle">Complete your identity verification</p>
+
+            {error && <div className="error-alert text-left">{error}</div>}
+
+            <div className="auth-method-selector">
+              <label className="method-radio selected">
+                <input type="radio" checked readOnly />
+                <Fingerprint size={18} />
+                <span>Fingerprint Scanner</span>
+              </label>
+            </div>
+
+            <div className={`biometric-scanner-box ${scanning ? 'scanning' : ''} ${success ? 'success' : ''}`}>
+              {success ? (
+                <div className="success-state fade-in">
+                  <CheckCircle2 size={64} className="text-teal mb-4" />
+                  <h4>Fingerprint Verified ✓</h4>
+                  <p>Redirecting securely...</p>
+                </div>
+              ) : (
+                <div className="scan-state">
+                  <div className="fingerprint-wrapper">
+                    <Fingerprint size={80} className={`text-blue ${scanning ? 'pulse' : ''}`} />
+                    {scanning && <div className="scan-line"></div>}
+                  </div>
+                  <h4 className="mt-6 mb-2">
+                    {scanning ? 'Scanning biometrics...' : 'Place your registered finger on scanner...'}
+                  </h4>
+                  {scanning && (
+                    <div className="progress-bar mt-4">
+                      <div className="progress-fill"></div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {!success && !scanning && error && (
+              <button onClick={startScan} className="btn-solid-blue w-full mt-6">
+                Try Again
+              </button>
+            )}
+            
+            {!success && !scanning && !error && (
+              <p className="text-muted text-sm mt-6 flex items-center justify-center gap-2">
+                <ShieldCheck size={16} /> Secured by ABHA Framework
+              </p>
+            )}
+          </div>
         </div>
 
-        <button 
-          className="w-full mt-4" 
-          onClick={handleScan}
-          disabled={scanning}
-        >
-          {scanning ? (
-            <><Loader size={18} className="spinner" /> Scanning...</>
-          ) : (
-            'Start Scan'
-          )}
-        </button>
-        
-        <button 
-          className="w-full mt-4 outline" 
-          onClick={() => navigate('/login')}
-          disabled={scanning}
-        >
-          Back
-        </button>
+        <div className="auth-legal-footer">
+          <a href="#">Privacy Policy</a>
+          <span className="separator">•</span>
+          <a href="#">Terms of Service</a>
+        </div>
       </div>
     </div>
   );

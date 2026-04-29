@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserSearch, KeyRound, Loader, LogOut } from 'lucide-react';
-import { getPatientData } from '../../utils/doctorApi';
+import { startDoctorSession } from '../../utils/doctorApi';
 
 export default function PatientAccess() {
   const [patientId, setPatientId] = useState('P001');
@@ -21,17 +21,16 @@ export default function PatientAccess() {
     setError('');
     
     try {
-      // Validate token by trying to fetch patient data
-      const res = await getPatientData(patientId, accessToken);
+      // Step 1: Start a 30-min session with the access token
+      const res = await startDoctorSession(patientId, accessToken);
       
-      if (res.success) {
-        // Store session data and navigate to dashboard
-        localStorage.setItem('doctorSessionToken', accessToken);
-        localStorage.setItem('currentPatientId', patientId);
-        navigate('/doctor/dashboard');
-      } else {
-        setError('Access denied or token expired');
-      }
+      // Step 2: Store session data for subsequent requests
+      localStorage.setItem('doctorSessionId', res.session_id);
+      localStorage.setItem('doctorSessionToken', accessToken);
+      localStorage.setItem('currentPatientId', patientId);
+      
+      // Step 3: Navigate to the dashboard
+      navigate('/doctor/dashboard');
     } catch (err) {
       setError(err.message || 'Access denied or token expired');
     } finally {
@@ -42,6 +41,7 @@ export default function PatientAccess() {
   const handleLogout = () => {
     localStorage.removeItem('doctorToken');
     localStorage.removeItem('doctorSessionToken');
+    localStorage.removeItem('doctorSessionId');
     localStorage.removeItem('currentPatientId');
     navigate('/doctor/login');
   };

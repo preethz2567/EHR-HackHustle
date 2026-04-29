@@ -4,6 +4,7 @@ import DoctorAuthGuard from './components/DoctorAuthGuard';
 import Login from './pages/Login';
 import BiometricAuth from './pages/BiometricAuth';
 import Dashboard from './pages/Dashboard';
+import LandingPage from './pages/LandingPage';
 
 import DoctorLogin from './pages/doctor/DoctorLogin';
 import PatientAccess from './pages/doctor/PatientAccess';
@@ -15,6 +16,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/biometric-auth" element={<BiometricAuth />} />
         

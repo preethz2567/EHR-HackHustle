@@ -74,24 +74,7 @@ for _email, _pw in _DOCTOR_PASSWORDS.items():
     }
 
 
-# ---------------------------------------------------------------------------
-# Audit log (in-memory for demo; swap with DB/file in production)
-# ---------------------------------------------------------------------------
-
-AUDIT_LOG: list[dict] = []
-
-
-def _log_audit(event_type: str, actor_id: str, details: str, success: bool):
-    """Record an audit event."""
-    entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "event_type": event_type,
-        "actor_id": actor_id,
-        "details": details,
-        "success": success,
-    }
-    AUDIT_LOG.append(entry)
-    return entry
+from api.audit import log_patient_action, log_doctor_action
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +119,7 @@ def authenticate_patient(patient_id: str, biometric_type: str,
     """
     # 1. Check patient exists
     if patient_id not in PATIENT_BIOMETRIC_STORE:
-        _log_audit("PATIENT_AUTH", patient_id, "Unknown patient ID", False)
+        log_patient_action(patient_id, "login", {"message": "Unknown patient ID"}, "failed")
         return {
             "success": False,
             "token": None,
@@ -148,7 +131,7 @@ def authenticate_patient(patient_id: str, biometric_type: str,
 
     # 2. Verify biometric (simulated hash comparison)
     if biometric_type not in ("fingerprint", "iris"):
-        _log_audit("PATIENT_AUTH", patient_id, f"Invalid biometric type: {biometric_type}", False)
+        log_patient_action(patient_id, "login", {"message": f"Invalid biometric type: {biometric_type}"}, "failed")
         return {
             "success": False,
             "token": None,
@@ -160,7 +143,7 @@ def authenticate_patient(patient_id: str, biometric_type: str,
     stored_hash = patient[f"{biometric_type}_hash"]
 
     if submitted_hash != stored_hash:
-        _log_audit("PATIENT_AUTH", patient_id, f"Biometric mismatch ({biometric_type})", False)
+        log_patient_action(patient_id, "login", {"message": f"Biometric mismatch ({biometric_type})"}, "failed")
         return {
             "success": False,
             "token": None,
@@ -170,7 +153,7 @@ def authenticate_patient(patient_id: str, biometric_type: str,
 
     # 3. Verify OTP
     if otp != Config.SIMULATED_OTP:
-        _log_audit("PATIENT_AUTH", patient_id, "Invalid OTP", False)
+        log_patient_action(patient_id, "login", {"message": "Invalid OTP"}, "failed")
         return {
             "success": False,
             "token": None,
@@ -189,7 +172,7 @@ def authenticate_patient(patient_id: str, biometric_type: str,
         expiry_seconds=Config.PATIENT_TOKEN_EXPIRY,
     )
 
-    _log_audit("PATIENT_AUTH", patient_id, "Authenticated successfully", True)
+    log_patient_action(patient_id, "login", {"message": "Authenticated successfully"}, "success")
 
     return {
         "success": True,
@@ -215,7 +198,7 @@ def authenticate_doctor(email: str, password: str) -> dict:
         dict with 'success', 'token', 'doctor_id', 'message'
     """
     if email not in DOCTOR_CREDENTIAL_STORE:
-        _log_audit("DOCTOR_AUTH", email, "Unknown email", False)
+        log_doctor_action(email, "login", status="failed", details={"message": "Unknown email"})
         return {
             "success": False,
             "token": None,
@@ -227,7 +210,7 @@ def authenticate_doctor(email: str, password: str) -> dict:
 
     # Verify password
     if not bcrypt.checkpw(password.encode(), doctor["password_hash"].encode()):
-        _log_audit("DOCTOR_AUTH", email, "Password mismatch", False)
+        log_doctor_action(email, "login", status="failed", details={"message": "Password mismatch"})
         return {
             "success": False,
             "token": None,
@@ -247,7 +230,7 @@ def authenticate_doctor(email: str, password: str) -> dict:
         expiry_seconds=Config.DOCTOR_TOKEN_EXPIRY,
     )
 
-    _log_audit("DOCTOR_AUTH", doctor["doctor_id"], "Authenticated successfully", True)
+    log_doctor_action(doctor["doctor_id"], "login", status="success", details={"message": "Authenticated successfully"})
 
     return {
         "success": True,

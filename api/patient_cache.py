@@ -22,29 +22,7 @@ PATIENT_CACHE: dict[str, dict[str, Any]] = {}
 # access_token -> {patient_id, doctor_id, expires_at, created_at}
 ACCESS_TOKEN_STORE: dict[str, dict[str, Any]] = {}
 
-# patient_id -> [{event_type, actor_id, actor_role, timestamp, details}]
-PATIENT_AUDIT_LOG: dict[str, list[dict[str, Any]]] = {}
-
-
-# ---------------------------------------------------------------------------
-# Audit helpers
-# ---------------------------------------------------------------------------
-
-def _log_patient_audit(patient_id: str, event_type: str, actor_id: str,
-                       actor_role: str, details: str):
-    """Append an audit entry for a specific patient."""
-    if patient_id not in PATIENT_AUDIT_LOG:
-        PATIENT_AUDIT_LOG[patient_id] = []
-
-    entry = {
-        "event_type": event_type,
-        "actor_id": actor_id,
-        "actor_role": actor_role,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "details": details,
-    }
-    PATIENT_AUDIT_LOG[patient_id].append(entry)
-    return entry
+from api.audit import log_patient_action
 
 
 # ---------------------------------------------------------------------------
@@ -201,9 +179,10 @@ def create_access_token(patient_id: str, doctor_email: str,
         "revoked": False,
     }
 
-    _log_patient_audit(
-        patient_id, "ACCESS_TOKEN_GRANTED", patient_id, "patient",
-        f"Access granted to {doctor_email} for {duration_minutes} minutes"
+    log_patient_action(
+        patient_id, 
+        "generate_token", 
+        {"message": f"Access granted to {doctor_email} for {duration_minutes} minutes"}
     )
 
     return {
@@ -253,19 +232,13 @@ def revoke_token(patient_id: str, token: str) -> bool:
         ACCESS_TOKEN_STORE[token]["revoked"] = True
         ACCESS_TOKEN_STORE[token]["status"] = "revoked"
         
-        _log_patient_audit(
-            patient_id, "ACCESS_TOKEN_REVOKED", patient_id, "patient",
-            f"Patient revoked access token manually"
+        log_patient_action(
+            patient_id, 
+            "revoke_token", 
+            {"message": "Patient revoked access token manually"}
         )
         return True
     return False
 
 
-# ---------------------------------------------------------------------------
-# Patient audit log
-# ---------------------------------------------------------------------------
 
-def get_patient_audit_log(patient_id: str) -> list[dict]:
-    """Return all audit entries for a patient, most recent first."""
-    entries = PATIENT_AUDIT_LOG.get(patient_id, [])
-    return list(reversed(entries))

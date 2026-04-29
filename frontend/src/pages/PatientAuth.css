@@ -1,0 +1,399 @@
+/* PatientAuth.css */
+
+.auth-page-container {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f8fafc;
+}
+
+/* Left Side: Hero Image */
+.auth-hero-section {
+  display: none;
+  position: relative;
+  flex: 1;
+  background-color: #1e3a8a;
+  overflow: hidden;
+}
+
+@media (min-width: 900px) {
+  .auth-hero-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.auth-hero-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.8) 0%, rgba(20, 184, 166, 0.7) 100%);
+  z-index: 1;
+}
+
+.auth-hero-image {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+.auth-hero-content {
+  position: relative;
+  z-index: 2;
+  color: white;
+  max-width: 500px;
+  padding: 3rem;
+  text-align: left;
+}
+
+.auth-hero-content h2 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.auth-hero-content p {
+  font-size: 1.125rem;
+  opacity: 0.9;
+  line-height: 1.6;
+}
+
+/* Right Side: Form */
+.auth-form-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.auth-form-header {
+  margin-bottom: 3rem;
+}
+
+.auth-form-header .tagline {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  font-weight: 500;
+}
+
+.auth-form-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-step-1 h3, .auth-step-2 h3 {
+  font-size: 1.75rem;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.subtitle {
+  color: #64748b;
+  margin-bottom: 2rem;
+}
+
+.error-alert {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+  border-left: 4px solid #ef4444;
+}
+
+/* Form Inputs */
+.input-group label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 0.5rem;
+}
+
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 1rem;
+  color: #94a3b8;
+}
+
+.input-with-icon input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: #0f172a;
+  transition: all 0.2s;
+}
+
+.input-with-icon input:focus {
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+  outline: none;
+}
+
+.forgot-password {
+  text-align: right;
+  margin-top: 0.5rem;
+}
+
+.forgot-password a {
+  font-size: 0.875rem;
+  color: #0ea5e9;
+  font-weight: 500;
+}
+
+.forgot-password a:hover {
+  text-decoration: underline;
+}
+
+.btn-solid-blue {
+  background-color: #1e40af;
+  color: white;
+  padding: 0.875rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-solid-blue:hover {
+  background-color: #1e3a8a;
+}
+
+.auth-footer-link {
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.auth-footer-link a {
+  color: #0d9488;
+  font-weight: 600;
+}
+
+/* OTP Step Specifics */
+.back-button {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0;
+  cursor: pointer;
+  margin-bottom: 1.5rem;
+  display: inline-flex;
+}
+
+.back-button:hover {
+  color: #0f172a;
+}
+
+.otp-container {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.otp-input {
+  width: 3.5rem;
+  height: 4rem;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  background-color: white;
+}
+
+.otp-input:focus {
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+  outline: none;
+}
+
+.resend-container {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.resend-btn {
+  background: none;
+  border: none;
+  color: #14b8a6;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.resend-btn:hover {
+  text-decoration: underline;
+}
+
+/* Legal Footer */
+.auth-legal-footer {
+  margin-top: auto;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  padding-top: 2rem;
+}
+
+.auth-legal-footer a {
+  color: #64748b;
+}
+
+.auth-legal-footer a:hover {
+  color: #0f172a;
+}
+
+.separator {
+  margin: 0 0.5rem;
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* Biometric Auth Specifics */
+.auth-method-selector {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.method-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border: 2px solid #cbd5e1;
+  border-radius: 8px;
+  background-color: white;
+  cursor: pointer;
+  color: #64748b;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.method-radio.selected {
+  border-color: #14b8a6;
+  background-color: #f0fdf4;
+  color: #0f766e;
+}
+
+.method-radio input {
+  display: none;
+}
+
+.biometric-scanner-box {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 3rem 2rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  margin-bottom: 1.5rem;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.fingerprint-wrapper {
+  position: relative;
+  display: inline-block;
+  padding: 1rem;
+}
+
+.pulse {
+  animation: pulse-op 1.5s infinite;
+}
+
+@keyframes pulse-op {
+  0% { opacity: 0.5; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0.5; transform: scale(0.95); }
+}
+
+.scan-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background-color: #0d9488;
+  box-shadow: 0 0 10px #0d9488;
+  border-radius: 2px;
+  animation: scan 2s infinite linear;
+}
+
+@keyframes scan {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.progress-bar {
+  width: 100%;
+  max-width: 200px;
+  height: 6px;
+  background-color: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: #0d9488;
+  width: 0%;
+  animation: fill-progress 2s forwards linear;
+}
+
+@keyframes fill-progress {
+  to { width: 100%; }
+}
+
+.success-state h4 {
+  color: #0f172a;
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.success-state p {
+  color: #64748b;
+}
+
