@@ -59,6 +59,7 @@ PATIENT_BIOMETRIC_STORE = {
 # Simulated doctor credentials
 # Passwords are bcrypt-hashed versions of the plaintext shown in comments
 _DOCTOR_PASSWORDS = {
+    "dr.amit@hospital.com": "doctor123",            # Demo password
     "dr.sharma@cityhospital.in": "doctor123",       # Demo password
     "dr.gupta@metromed.in": "doctor123",
     "dr.iyer@regional.in": "doctor123",

@@ -1,5 +1,5 @@
 // src/utils/api.js
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://127.0.0.1:5000/api';
 
 /**
  * Standard fetch wrapper that automatically includes the Authorization header
@@ -22,16 +22,24 @@ export async function fetchApi(endpoint, options = {}) {
     delete headers['Content-Type'];
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    throw new Error('Connection failed. Please check your network and retry.');
+  }
 
   if (response.status === 401) {
-    // Unauthorized - token expired or invalid
     localStorage.removeItem('patientToken');
     window.location.href = '/login';
     throw new Error('Unauthorized');
+  }
+
+  if (response.status === 404) {
+    throw new Error('Patient not found');
   }
 
   const data = await response.json();
@@ -73,9 +81,8 @@ export async function getCachedData(patientId) {
   });
 }
 
-export async function uploadManualRecord(patientId, documentType, file) {
+export async function uploadManualRecord(patientId, file) {
   const formData = new FormData();
-  formData.append('document_type', documentType);
   formData.append('file', file);
 
   return fetchApi(`/patient/${patientId}/upload-manual`, {
@@ -84,18 +91,17 @@ export async function uploadManualRecord(patientId, documentType, file) {
   });
 }
 
-export async function generateAccessToken(patientId, doctorEmail, durationMinutes) {
+export async function generateAccessToken(patientId, doctorEmail) {
   return fetchApi(`/patient/${patientId}/generate-access-token`, {
     method: 'POST',
     body: JSON.stringify({
       doctor_email: doctorEmail,
-      duration_minutes: durationMinutes,
     }),
   });
 }
 
-export async function getActiveAuthorizations(patientId) {
-  return fetchApi(`/patient/${patientId}/active-authorizations`, {
+export async function getActiveTokens(patientId) {
+  return fetchApi(`/patient/${patientId}/active-tokens`, {
     method: 'GET',
   });
 }
@@ -109,5 +115,11 @@ export async function revokeToken(patientId, accessToken) {
 export async function getAuditLog(patientId) {
   return fetchApi(`/patient/${patientId}/audit-log`, {
     method: 'GET',
+  });
+}
+
+export async function exportMedicalRecordsPdf(patientId) {
+  return fetchApi(`/patient/${patientId}/export-medical-records-pdf`, {
+    method: 'POST',
   });
 }

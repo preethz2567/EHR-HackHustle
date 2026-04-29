@@ -1,184 +1,194 @@
 import { useState, useEffect } from 'react';
-import { FileText, Loader, Download, ChevronDown, ChevronUp, Pill, Activity, Syringe, PlusSquare } from 'lucide-react';
-import { getCachedData } from '../utils/api';
+import {
+  FileText, Loader, Download, ChevronDown, ChevronUp,
+  Pill, Activity, TestTube2, CalendarClock,
+} from 'lucide-react';
+import { getCachedData, exportMedicalRecordsPdf } from '../utils/api';
+
+/* inline colour tokens so every sub-component stays consistent */
+const C = {
+  blue: '#1e40af', teal: '#10b981', gray: '#f3f4f6',
+  border: '#e5e7eb', text: '#111827', muted: '#6b7280',
+};
 
 export default function MedicalRecords({ patientId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [openSection, setOpenSection] = useState('diagnoses');
+  const [open, setOpen] = useState('diagnoses');
 
-  const loadData = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await getCachedData(patientId);
-      setData(res.data);
-    } catch (err) {
-      if (err.message.includes('404') || err.message.includes('No cached data')) {
-        setError('No historical data found. Please fetch from providers using the button above.');
-      } else {
-        setError(err.message || 'Failed to load medical records');
-      }
-    } finally {
-      setLoading(false);
-    }
+  const load = async () => {
+    setLoading(true); setError('');
+    try { const r = await getCachedData(patientId); setData(r.data); }
+    catch (e) {
+      setError(
+        e.message?.includes('404') || e.message?.includes('No cached')
+          ? 'No historical data found. Please fetch from providers first.'
+          : e.message || 'Failed to load records',
+      );
+    } finally { setLoading(false); }
   };
 
   useEffect(() => {
-    loadData();
-    window.addEventListener('refreshData', loadData);
-    return () => window.removeEventListener('refreshData', loadData);
+    load();
+    window.addEventListener('refreshData', load);
+    return () => window.removeEventListener('refreshData', load);
   }, [patientId]);
 
-  if (loading) {
+  if (loading)
     return (
       <div style={{ textAlign: 'center', padding: '3rem' }}>
-        <Loader size={32} className="spinner" style={{ margin: '0 auto', color: '#0284c7' }} />
-        <p style={{ marginTop: '1rem', color: '#64748b' }}>Loading medical records...</p>
+        <Loader size={28} className="spinner" style={{ margin: '0 auto', color: C.blue }} />
+        <p style={{ marginTop: '0.85rem', color: C.muted }}>Loading medical records…</p>
       </div>
     );
-  }
 
-  if (error || !data) {
+  if (error || !data)
     return (
-      <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-        <FileText size={48} style={{ margin: '0 auto', color: '#cbd5e1' }} />
-        <h3 style={{ marginTop: '1rem', color: '#334155' }}>No Records Found</h3>
-        <p style={{ color: '#64748b', marginTop: '0.5rem' }}>{error}</p>
+      <div style={{ textAlign: 'center', padding: '3rem', background: C.gray, borderRadius: 8 }}>
+        <FileText size={44} style={{ margin: '0 auto', color: '#d1d5db' }} />
+        <h3 style={{ marginTop: '0.85rem', color: C.text }}>No Records Found</h3>
+        <p style={{ color: C.muted, marginTop: '0.35rem' }}>{error}</p>
       </div>
     );
-  }
 
-  const toggleSection = (section) => {
-    setOpenSection(openSection === section ? '' : section);
-  };
+  const toggle = (id) => setOpen(open === id ? '' : id);
 
-  const AccordionHeader = ({ id, title, icon: Icon, count }) => (
-    <div 
-      style={{ 
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-        padding: '1rem 1.5rem', cursor: 'pointer', backgroundColor: openSection === id ? '#f0f9ff' : 'white',
-        borderBottom: '1px solid #e2e8f0', transition: 'background-color 0.2s'
+  const Header = ({ id, title, icon: Icon, count }) => (
+    <div
+      onClick={() => toggle(id)}
+      style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '0.85rem 1.15rem', cursor: 'pointer',
+        background: open === id ? '#eff6ff' : '#fff',
+        borderBottom: `1px solid ${C.border}`, transition: 'background 0.15s',
       }}
-      onClick={() => toggleSection(id)}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#0f172a', fontWeight: '600' }}>
-        <Icon size={20} style={{ color: '#0284c7' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontWeight: 600, color: C.text }}>
+        <Icon size={18} style={{ color: C.blue }} />
         {title}
-        <span style={{ backgroundColor: '#e2e8f0', color: '#475569', fontSize: '0.75rem', padding: '0.1rem 0.5rem', borderRadius: '99px' }}>
+        <span style={{ background: '#e5e7eb', color: '#4b5563', fontSize: '0.7rem', padding: '0.1rem 0.45rem', borderRadius: 99 }}>
           {count}
         </span>
       </div>
-      <div>
-        {openSection === id ? <ChevronUp size={20} color="#64748b"/> : <ChevronDown size={20} color="#64748b"/>}
-      </div>
+      {open === id ? <ChevronUp size={18} color={C.muted} /> : <ChevronDown size={18} color={C.muted} />}
     </div>
   );
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#083344' }}>Comprehensive Record</h3>
-        <button style={{ 
-          display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', 
-          backgroundColor: 'white', border: '1px solid #cbd5e1', borderRadius: '6px', 
-          color: '#334155', fontWeight: '500', cursor: 'pointer' 
-        }}>
-          <Download size={16} /> Download as PDF
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.15rem' }}>
+        <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: C.blue }}>Comprehensive EHR Summary</h3>
+        <button 
+          onClick={async () => {
+            try {
+              const res = await exportMedicalRecordsPdf(patientId);
+              if (res.download_url) {
+                const a = document.createElement('a');
+                a.href = `http://127.0.0.1:5000${res.download_url}`;
+                a.download = res.filename || 'report.pdf';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+              }
+            } catch (err) {
+              alert(err.message || 'Failed to download PDF');
+            }
+          }}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.85rem', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, fontWeight: 500, cursor: 'pointer', fontSize: '0.85rem' }}
+        >
+          <Download size={15} /> Download as PDF
         </button>
       </div>
 
-      <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-        
-        {/* Diagnoses Accordion */}
-        <AccordionHeader id="diagnoses" title="Diagnoses" icon={Activity} count={data.diagnoses?.length || 0} />
-        {openSection === 'diagnoses' && (
-          <div style={{ padding: '1.5rem', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' }}>
-            {data.diagnoses?.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
+      <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
+        {/* Diagnoses */}
+        <Header id="diagnoses" title="Diagnoses" icon={Activity} count={data.diagnoses?.length || 0} />
+        {open === 'diagnoses' && (
+          <div style={{ padding: '1.15rem', background: '#fff', borderBottom: `1px solid ${C.border}` }}>
+            {data.diagnoses?.length ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '0.85rem' }}>
                 {data.diagnoses.map((d, i) => (
-                  <div key={i} style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: '#f8fafc' }}>
-                    <div style={{ fontWeight: '600', color: '#0f172a', marginBottom: '0.25rem' }}>{d.name}</div>
-                    <div style={{ fontSize: '0.875rem', color: '#64748b' }}>Diagnosed: {d.date_of_diagnosis}</div>
-                    <div style={{ fontSize: '0.875rem', color: '#64748b' }}>ICD-10: {d.code}</div>
+                  <div key={i} style={{ padding: '0.85rem', border: `1px solid ${C.border}`, borderRadius: 6, background: C.gray }}>
+                    <div style={{ fontWeight: 600, color: C.text, marginBottom: '0.2rem' }}>{d.name}</div>
+                    <div style={{ fontSize: '0.825rem', color: C.muted }}>Diagnosed: {d.date_of_diagnosis}</div>
+                    <div style={{ fontSize: '0.825rem', color: C.muted }}>ICD-10: {d.code}</div>
                   </div>
                 ))}
               </div>
-            ) : <p style={{ color: '#64748b' }}>No active diagnoses</p>}
+            ) : <p style={{ color: C.muted }}>No active diagnoses</p>}
           </div>
         )}
 
-        {/* Medications Accordion */}
-        <AccordionHeader id="medications" title="Medications" icon={Pill} count={data.medications?.length || 0} />
-        {openSection === 'medications' && (
-          <div style={{ padding: '1.5rem', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' }}>
-            {data.medications?.length > 0 ? (
+        {/* Medications */}
+        <Header id="medications" title="Medications" icon={Pill} count={data.medications?.length || 0} />
+        {open === 'medications' && (
+          <div style={{ padding: '1.15rem', background: '#fff', borderBottom: `1px solid ${C.border}` }}>
+            {data.medications?.length ? (
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
-                    <th style={{ padding: '0.75rem' }}>Name</th>
-                    <th style={{ padding: '0.75rem' }}>Dosage</th>
-                    <th style={{ padding: '0.75rem' }}>Indication</th>
-                    <th style={{ padding: '0.75rem' }}>Status</th>
+                  <tr style={{ borderBottom: `2px solid ${C.border}`, color: '#4b5563' }}>
+                    <th style={{ padding: '0.6rem' }}>Name</th>
+                    <th style={{ padding: '0.6rem' }}>Dosage</th>
+                    <th style={{ padding: '0.6rem' }}>Indication</th>
+                    <th style={{ padding: '0.6rem' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.medications.map((m, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '1rem 0.75rem', fontWeight: '500', color: '#0f172a' }}>{m.name}</td>
-                      <td style={{ padding: '1rem 0.75rem', color: '#334155' }}>{m.dosage}</td>
-                      <td style={{ padding: '1rem 0.75rem', color: '#64748b' }}>{m.indication}</td>
-                      <td style={{ padding: '1rem 0.75rem' }}>
-                        <span style={{ backgroundColor: '#dcfce7', color: '#166534', padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600' }}>Active</span>
+                    <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: '0.75rem 0.6rem', fontWeight: 500 }}>{m.name}</td>
+                      <td style={{ padding: '0.75rem 0.6rem', color: '#374151' }}>{m.dosage}</td>
+                      <td style={{ padding: '0.75rem 0.6rem', color: C.muted }}>{m.indication}</td>
+                      <td style={{ padding: '0.75rem 0.6rem' }}>
+                        <span style={{ background: '#d1fae5', color: '#065f46', padding: '0.15rem 0.45rem', borderRadius: 4, fontSize: '0.7rem', fontWeight: 600 }}>Active</span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            ) : <p style={{ color: '#64748b' }}>No active medications</p>}
+            ) : <p style={{ color: C.muted }}>No active medications</p>}
           </div>
         )}
 
-        {/* Labs Accordion */}
-        <AccordionHeader id="labs" title="Lab Results" icon={Syringe} count={data.labs?.length || 0} />
-        {openSection === 'labs' && (
-          <div style={{ padding: '1.5rem', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' }}>
-            {data.labs?.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
+        {/* Labs */}
+        <Header id="labs" title="Lab Results" icon={TestTube2} count={data.labs?.length || 0} />
+        {open === 'labs' && (
+          <div style={{ padding: '1.15rem', background: '#fff', borderBottom: `1px solid ${C.border}` }}>
+            {data.labs?.length ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(190px,1fr))', gap: '0.85rem' }}>
                 {data.labs.map((l, i) => (
-                  <div key={i} style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '6px', borderLeft: '4px solid #0d9488' }}>
-                    <div style={{ fontWeight: '600', color: '#0f172a' }}>{l.test_name}</div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0d9488', margin: '0.25rem 0' }}>{l.value}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Ref: {l.reference_range}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.5rem' }}>{l.date}</div>
+                  <div key={i} style={{ padding: '0.85rem', border: `1px solid ${C.border}`, borderRadius: 6, borderLeft: `4px solid ${C.teal}` }}>
+                    <div style={{ fontWeight: 600 }}>{l.test_name}</div>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 700, color: C.teal, margin: '0.15rem 0' }}>{l.value}</div>
+                    <div style={{ fontSize: '0.75rem', color: C.muted }}>Ref: {l.reference_range}</div>
+                    <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: '0.35rem' }}>{l.date}</div>
                   </div>
                 ))}
               </div>
-            ) : <p style={{ color: '#64748b' }}>No recent labs</p>}
+            ) : <p style={{ color: C.muted }}>No recent labs</p>}
           </div>
         )}
 
-        {/* Episodes Accordion */}
-        <AccordionHeader id="episodes" title="Clinical Episodes" icon={PlusSquare} count={data.episodes?.length || 0} />
-        {openSection === 'episodes' && (
-          <div style={{ padding: '1.5rem', backgroundColor: 'white' }}>
-            {data.episodes?.length > 0 ? (
-              <div style={{ position: 'relative', borderLeft: '2px solid #e2e8f0', marginLeft: '1rem', paddingLeft: '1.5rem' }}>
+        {/* Episodes */}
+        <Header id="episodes" title="Clinical Episodes" icon={CalendarClock} count={data.episodes?.length || 0} />
+        {open === 'episodes' && (
+          <div style={{ padding: '1.15rem', background: '#fff' }}>
+            {data.episodes?.length ? (
+              <div style={{ position: 'relative', borderLeft: `2px solid ${C.border}`, marginLeft: '0.85rem', paddingLeft: '1.25rem' }}>
                 {data.episodes.map((e, i) => (
-                  <div key={i} style={{ position: 'relative', marginBottom: '1.5rem' }}>
-                    <div style={{ position: 'absolute', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#0284c7', left: '-1.85rem', top: '0.25rem', border: '2px solid white' }}></div>
-                    <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#0284c7', textTransform: 'capitalize' }}>{e.type}</div>
-                    <div style={{ fontWeight: '600', color: '#0f172a', margin: '0.25rem 0' }}>{e.reason}</div>
-                    <div style={{ fontSize: '0.875rem', color: '#64748b' }}>{e.date} • Duration: {e.duration_days} days</div>
-                    <div style={{ fontSize: '0.875rem', color: '#475569', marginTop: '0.25rem' }}>Outcome: {e.outcome}</div>
+                  <div key={i} style={{ position: 'relative', marginBottom: '1.25rem' }}>
+                    <div style={{ position: 'absolute', width: 10, height: 10, borderRadius: '50%', background: C.blue, left: '-1.6rem', top: '0.3rem', border: '2px solid #fff' }} />
+                    <div style={{ fontSize: '0.825rem', fontWeight: 600, color: C.blue, textTransform: 'capitalize' }}>{e.type}</div>
+                    <div style={{ fontWeight: 600, color: C.text, margin: '0.15rem 0' }}>{e.reason}</div>
+                    <div style={{ fontSize: '0.825rem', color: C.muted }}>{e.date} · Duration: {e.duration_days} days</div>
+                    <div style={{ fontSize: '0.825rem', color: '#374151', marginTop: '0.15rem' }}>Outcome: {e.outcome}</div>
                   </div>
                 ))}
               </div>
-            ) : <p style={{ color: '#64748b' }}>No recent episodes</p>}
+            ) : <p style={{ color: C.muted }}>No recent episodes</p>}
           </div>
         )}
-
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 // src/utils/doctorApi.js
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://127.0.0.1:5000/api';
 
 /**
  * Standard fetch wrapper for doctor endpoints
@@ -16,20 +16,18 @@ export async function fetchDoctorApi(endpoint, options = {}, tokenType = 'doctor
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  // Attach session ID if available
-  const sessionId = localStorage.getItem('doctorSessionId');
-  if (sessionId) {
-    headers['Session-Id'] = sessionId;
+  let response;
+  try {
+    response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    throw new Error('Connection failed. Please check your network and retry.');
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
   if (response.status === 401) {
-    // Only clear session data, don't redirect if we're starting a session
-    if (!endpoint.includes('start-session')) {
+    if (!endpoint.includes('access-patient-data') && !endpoint.includes('start-session')) {
       localStorage.removeItem('doctorSessionId');
       localStorage.removeItem('doctorSessionToken');
       localStorage.removeItem('currentPatientId');
@@ -42,6 +40,10 @@ export async function fetchDoctorApi(endpoint, options = {}, tokenType = 'doctor
     throw new Error('Access denied or token expired');
   }
 
+  if (response.status === 404) {
+    throw new Error('Patient not found');
+  }
+
   const data = await response.json();
 
   if (!response.ok) {
@@ -52,65 +54,112 @@ export async function fetchDoctorApi(endpoint, options = {}, tokenType = 'doctor
 }
 
 /**
- * Auth functions
+ * Auth: Doctor login via backend
  */
 export async function authenticateDoctor(email, password) {
   return fetchDoctorApi('/doctor/auth', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
-  }, null); // No token required for login
+  }, null);
 }
 
 /**
- * Start a 30-minute session with the patient's access token.
- * Returns { session_id, expires_at_timestamp, expires_in_minutes }
+ * Simplified token access — doctor provides the patient's 32-char access token.
+ * Returns { status, patient_id, patient_data }.
+ */
+export async function accessPatientData(accessToken) {
+  const response = await fetch(`${API_URL}/doctor/access-patient-data`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken })
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Access denied');
+  }
+  return data;
+}
+
+/**
+ * Start a session by validating the patient's access token.
+ * Kept for backward compatibility with the PatientAccess → ChiefComplaint flow.
  */
 export async function startDoctorSession(patientId, accessToken) {
-  const res = await fetchDoctorApi('/doctor/start-session', {
-    method: 'POST',
-    body: JSON.stringify({ patient_id: patientId, access_token: accessToken }),
-  }, 'doctorToken');
-
-  return res;
+  // Use the simplified access endpoint directly
+  const data = await accessPatientData(accessToken);
+  return { session_id: 'simplified_session', patient_id: data.patient_id, patient_data: data.patient_data };
 }
 
 /**
- * Fetch patient data using the active session (Session-Id header auto-attached)
+ * Fetch patient data using the stored access token
  */
 export async function getPatientData() {
-  return fetchDoctorApi('/doctor/patient-data', {
-    method: 'GET',
-  }, 'doctorToken');
+  const accessToken = localStorage.getItem('doctorSessionToken');
+  if (!accessToken) throw new Error("No access token found");
+  
+  const data = await accessPatientData(accessToken);
+  return { patient_data: data.patient_data, patient_id: data.patient_id };
 }
 
 /**
- * Fetch dashboard-formatted data using the active session
+ * Fetch dashboard-formatted data (including AI analysis)
  */
 export async function getDashboardData() {
-  return fetchDoctorApi('/doctor/dashboard-data', {
-    method: 'GET',
-  }, 'doctorToken');
+  const accessToken = localStorage.getItem('doctorSessionToken');
+  if (!accessToken) throw new Error("No access token found");
+  
+  const response = await fetch(`${API_URL}/doctor/dashboard-data`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken })
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Access denied');
+  }
+  return data;
 }
 
 /**
- * Export PDF report using the active session
+ * Export PDF report via backend
+ */
+export async function exportReportPdf(accessToken, exportType = 'full') {
+  const response = await fetch(`${API_URL}/doctor/export-report-pdf`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken, export_type: exportType }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Export failed');
+  }
+  return data;
+}
+
+/**
+ * Download a generated PDF
+ */
+export function getDownloadUrl(filename) {
+  return `${API_URL.replace('/api', '')}/api/download/${filename}`;
+}
+
+/**
+ * Legacy export (blob download)
  */
 export async function exportReport() {
-  const token = localStorage.getItem('doctorToken');
-  const sessionId = localStorage.getItem('doctorSessionId');
-
-  const response = await fetch(`${API_URL}/doctor/export-report`, {
+  const accessToken = localStorage.getItem('doctorSessionToken');
+  const response = await fetch(`${API_URL}/doctor/export-report-pdf`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Session-Id': sessionId,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken, export_type: 'full' }),
   });
 
   if (!response.ok) {
     throw new Error('Failed to export report');
   }
 
-  return response.blob();
+  return response.json();
 }

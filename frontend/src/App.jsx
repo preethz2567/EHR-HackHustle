@@ -8,6 +8,7 @@ import LandingPage from './pages/LandingPage';
 
 import DoctorLogin from './pages/doctor/DoctorLogin';
 import PatientAccess from './pages/doctor/PatientAccess';
+import ChiefComplaint from './pages/doctor/ChiefComplaint';
 import DoctorDashboard from './pages/doctor/DoctorDashboard';
 
 import './App.css';
@@ -37,6 +38,15 @@ function App() {
           element={
             <DoctorAuthGuard>
               <PatientAccess />
+            </DoctorAuthGuard>
+          } 
+        />
+        
+        <Route 
+          path="/doctor/chief-complaint" 
+          element={
+            <DoctorAuthGuard>
+              <ChiefComplaint />
             </DoctorAuthGuard>
           } 
         />

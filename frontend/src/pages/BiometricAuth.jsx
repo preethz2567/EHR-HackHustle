@@ -1,134 +1,175 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { Fingerprint, CheckCircle2, ShieldCheck, HeartPulse } from 'lucide-react';
+import { CreditCard, CheckCircle2, ShieldCheck, HeartPulse, Loader } from 'lucide-react';
 import { authenticatePatient } from '../utils/api';
 import './PatientAuth.css';
 
 export default function BiometricAuth() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [scanning, setScanning] = useState(false);
+  const [aadhaar, setAadhaar] = useState('');
+  const [verifying, setVerifying] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  // Protect this route from direct access
-  if (!location.state || !location.state.patientId || !location.state.otp) {
+  if (!location.state?.patientId || !location.state?.otp) {
     return <Navigate to="/login" replace />;
   }
-
   const { patientId, otp } = location.state;
 
-  useEffect(() => {
-    // Auto-start scanning when component mounts
-    startScan();
-  }, []);
+  const formatAadhaar = (val) => {
+    const digits = val.replace(/\D/g, '').slice(0, 12);
+    const parts = [];
+    for (let i = 0; i < digits.length; i += 4) {
+      parts.push(digits.slice(i, i + 4));
+    }
+    return parts.join(' ');
+  };
 
-  const startScan = () => {
-    setScanning(true);
+  const handleChange = (e) => {
+    setAadhaar(formatAadhaar(e.target.value));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const digits = aadhaar.replace(/\s/g, '');
+    if (digits.length !== 12) {
+      setError('Please enter a valid 12-digit Aadhaar number.');
+      return;
+    }
+
+    setVerifying(true);
     setError('');
 
-    // Simulate 2 second scanning process
     setTimeout(async () => {
       try {
-        const mockBiometricData = `${patientId}-fingerprint-template`;
-        const res = await authenticatePatient(patientId, 'fingerprint', mockBiometricData, otp);
-        
+        // Use the original biometric template for backend compatibility
+        // Aadhaar is validated at the UI level only (simulated UIDAI check)
+        const res = await authenticatePatient(
+          patientId,
+          'fingerprint',
+          `${patientId}-fingerprint-template`,
+          otp
+        );
         if (res.success && res.token) {
           localStorage.setItem('patientToken', res.token);
-          setScanning(false);
+          setVerifying(false);
           setSuccess(true);
-          
-          // Wait 1.5s on success screen before redirecting
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 1500);
+          setTimeout(() => navigate('/dashboard'), 1200);
         } else {
-          setError(res.message || 'Authentication failed');
-          setScanning(false);
+          setError(res.message || 'Verification failed. Please try again.');
+          setVerifying(false);
         }
       } catch (err) {
-        setError(err.message || 'Server error occurred');
-        setScanning(false);
+        setError(err.message || 'Server error. Please try again.');
+        setVerifying(false);
       }
     }, 2000);
   };
 
   return (
     <div className="auth-page-container">
-      {/* Left Side - Hero Image */}
+      {/* Left Hero */}
       <div className="auth-hero-section">
-        <div className="auth-hero-overlay"></div>
-        <img 
-          src="https://images.unsplash.com/photo-1576091160550-2173ff9e5eb3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
-          alt="Healthcare Security" 
+        <div className="auth-hero-overlay" />
+        <img
+          src="https://images.unsplash.com/photo-1576091160550-2173ff9e5eb3?auto=format&fit=crop&w=1000&q=80"
+          alt="Healthcare"
           className="auth-hero-image"
         />
         <div className="auth-hero-content">
-          <h2>Empowering Your Healthcare Journey</h2>
-          <p>Access your medical records securely, manage your health data, and connect seamlessly with your care team.</p>
+          <h2>Secure Identity Verification</h2>
+          <p>
+            Your Aadhaar verification is powered by UIDAI and secured through
+            the ABHA Health ID framework. Your data is never stored.
+          </p>
         </div>
       </div>
 
-      {/* Right Side - Biometric Form */}
+      {/* Right Panel */}
       <div className="auth-form-section">
         <div className="auth-form-header">
           <div className="logo-container">
-            <HeartPulse className="text-blue" size={32} />
-            <span className="logo-text">HealthBridge <span className="text-teal">India</span></span>
+            <HeartPulse className="logo-icon" size={28} />
+            <span className="logo-text">
+              HealthBridge <span className="logo-accent">India</span>
+            </span>
           </div>
           <p className="tagline">Your Health, Your Control</p>
         </div>
 
-        <div className="auth-form-container text-center">
+        <div className="auth-form-container">
           <div className="fade-in">
-            <h3>Two-Factor Authentication</h3>
-            <p className="subtitle">Complete your identity verification</p>
+            <h3>Aadhaar Verification</h3>
+            <p className="subtitle">
+              Verify your identity using your Aadhaar number linked with ABHA
+            </p>
 
-            {error && <div className="error-alert text-left">{error}</div>}
+            {error && <div className="error-alert">{error}</div>}
 
-            <div className="auth-method-selector">
-              <label className="method-radio selected">
-                <input type="radio" checked readOnly />
-                <Fingerprint size={18} />
-                <span>Fingerprint Scanner</span>
-              </label>
-            </div>
-
-            <div className={`biometric-scanner-box ${scanning ? 'scanning' : ''} ${success ? 'success' : ''}`}>
-              {success ? (
-                <div className="success-state fade-in">
-                  <CheckCircle2 size={64} className="text-teal mb-4" />
-                  <h4>Fingerprint Verified ✓</h4>
-                  <p>Redirecting securely...</p>
-                </div>
-              ) : (
-                <div className="scan-state">
-                  <div className="fingerprint-wrapper">
-                    <Fingerprint size={80} className={`text-blue ${scanning ? 'pulse' : ''}`} />
-                    {scanning && <div className="scan-line"></div>}
-                  </div>
-                  <h4 className="mt-6 mb-2">
-                    {scanning ? 'Scanning biometrics...' : 'Place your registered finger on scanner...'}
-                  </h4>
-                  {scanning && (
-                    <div className="progress-bar mt-4">
-                      <div className="progress-fill"></div>
+            {success ? (
+              <div className="success-panel fade-in">
+                <CheckCircle2 size={60} className="success-icon" />
+                <h4>Identity Verified ✓</h4>
+                <p>Redirecting to your dashboard…</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit}>
+                {/* Aadhaar card visual */}
+                <div className="aadhaar-card">
+                  <div className="aadhaar-card-top">
+                    <div>
+                      <div className="aadhaar-label">Government of India</div>
+                      <div className="aadhaar-title">आधार — Aadhaar</div>
                     </div>
-                  )}
+                    <CreditCard size={26} style={{ opacity: 0.5 }} />
+                  </div>
+                  <div className="aadhaar-number">
+                    {aadhaar || 'XXXX XXXX XXXX'}
+                  </div>
+                  <div className="aadhaar-sub">Linked with ABHA Health ID</div>
+                  <div className="aadhaar-circle-1" />
+                  <div className="aadhaar-circle-2" />
                 </div>
-              )}
-            </div>
 
-            {!success && !scanning && error && (
-              <button onClick={startScan} className="btn-solid-blue w-full mt-6">
-                Try Again
-              </button>
-            )}
-            
-            {!success && !scanning && !error && (
-              <p className="text-muted text-sm mt-6 flex items-center justify-center gap-2">
-                <ShieldCheck size={16} /> Secured by ABHA Framework
-              </p>
+                {/* Input */}
+                <div className="input-group">
+                  <label>Aadhaar Number</label>
+                  <div className="input-with-icon">
+                    <CreditCard size={18} className="input-icon" />
+                    <input
+                      type="text"
+                      placeholder="XXXX XXXX XXXX"
+                      value={aadhaar}
+                      onChange={handleChange}
+                      maxLength={14}
+                      style={{ letterSpacing: '0.1em', fontFamily: "'Inter', monospace" }}
+                    />
+                  </div>
+                  <p className="input-hint">
+                    Your Aadhaar is verified via UIDAI and never stored
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn-primary-auth w-full mt-6"
+                  disabled={verifying}
+                >
+                  {verifying ? (
+                    <>
+                      <Loader size={17} className="spinner" />
+                      Verifying with UIDAI…
+                    </>
+                  ) : (
+                    'Verify & Continue'
+                  )}
+                </button>
+
+                <p className="secured-badge">
+                  <ShieldCheck size={15} /> Secured by ABHA Framework
+                </p>
+              </form>
             )}
           </div>
         </div>

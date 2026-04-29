@@ -123,17 +123,7 @@ def _styled_table(data, col_widths=None):
 # Main generator
 # ---------------------------------------------------------------------------
 
-def generate_medical_report_pdf(dashboard_data: dict, doctor_name: str = "Doctor") -> io.BytesIO:
-    """
-    Generate a professional medical report PDF from dashboard data.
-
-    Args:
-        dashboard_data: The response dict from _build_dashboard_dict()
-        doctor_name: Name of the doctor generating the report
-
-    Returns:
-        io.BytesIO buffer containing the PDF bytes.
-    """
+def generate_medical_report_pdf(dashboard_data: dict, doctor_name: str = "Doctor", export_type: str = "full") -> io.BytesIO:
     buf = io.BytesIO()
     styles = _build_styles()
 
@@ -154,121 +144,156 @@ def generate_medical_report_pdf(dashboard_data: dict, doctor_name: str = "Doctor
     recs = dashboard_data.get("recommendations", {})
 
     # ── HEADER ────────────────────────────────────────────────────────
-    story.append(Paragraph("Patient Medical Report", styles["title"]))
+    story.append(Paragraph("HealthBridge Patient Report", styles["title"]))
     story.append(Paragraph(
-        f"Generated on {now.strftime('%B %d, %Y at %H:%M UTC')}  •  Prepared by {doctor_name}",
+        f"Generated on: {now.strftime('%d-%b-%Y %H:%M')} | Patient: {ps.get('name', 'Unknown')} | ID: {ps.get('patient_id', 'Unknown')} | Doctor: {doctor_name}",
         styles["subtitle"]
     ))
     story.append(HRFlowable(width="100%", thickness=1, color=SECONDARY, spaceAfter=4 * mm))
 
-    # ── SECTION 1: PATIENT INFO ───────────────────────────────────────
-    story.append(Paragraph("1. Patient Information", styles["section"]))
-    story.append(Spacer(1, 2 * mm))
-
-    info_data = [
-        ["Field", "Value"],
-        ["Patient ID", str(ps.get("patient_id", "N/A"))],
-        ["Age", str(ps.get("age", "Unknown"))],
-        ["Gender", str(ps.get("gender", "Unknown"))],
-        ["Allergies", ", ".join(ps.get("allergies", [])) or "None reported"],
-        ["Total Diagnoses", str(ps.get("diagnoses_count", 0))],
-        ["Active Medications", str(ps.get("medications_count", 0))],
-        ["Lab Tests on Record", str(ps.get("lab_tests_count", 0))],
-    ]
-    story.append(_styled_table(info_data, col_widths=[5 * cm, 12 * cm]))
-    story.append(Spacer(1, 4 * mm))
-
-    # ── SECTION 2: RISK ASSESSMENT ────────────────────────────────────
-    story.append(Paragraph("2. Risk Assessment", styles["section"]))
-    story.append(Spacer(1, 2 * mm))
-
-    immediate_risks = risk.get("immediate_risks", [])
-    if immediate_risks:
-        risk_data = [["Condition", "Risk Level"]]
-        for r in immediate_risks:
-            risk_data.append([
-                str(r.get("condition", "Unknown")),
-                str(r.get("level", "Unknown"))
-            ])
-        story.append(Paragraph("Immediate Risks:", styles["bold"]))
-        story.append(Spacer(1, 1 * mm))
-        story.append(_styled_table(risk_data, col_widths=[12 * cm, 5 * cm]))
-        story.append(Spacer(1, 3 * mm))
-    else:
-        story.append(Paragraph("No immediate risks identified.", styles["body"]))
+    if export_type in ["full", "summary"]:
+        # ── SECTION 1: PATIENT SUMMARY ───────────────────────────────────────
+        story.append(Paragraph("Patient Summary", styles["section"]))
         story.append(Spacer(1, 2 * mm))
 
-    interactions = risk.get("drug_interactions", [])
-    if interactions:
-        story.append(Paragraph("Drug Interactions:", styles["bold"]))
-        story.append(Spacer(1, 1 * mm))
-        int_data = [["Drugs", "Description", "Severity"]]
-        for inter in interactions:
-            drugs = ", ".join(inter.get("drugs", []))
-            int_data.append([
-                drugs,
-                str(inter.get("description", "")),
-                str(inter.get("severity", ""))
-            ])
-        story.append(_styled_table(int_data, col_widths=[5 * cm, 8 * cm, 4 * cm]))
+        info_data = [
+            ["Field", "Value"],
+            ["Patient ID", str(ps.get("patient_id", "N/A"))],
+            ["Age", str(ps.get("age", "Unknown"))],
+            ["Gender", str(ps.get("gender", "Unknown"))],
+            ["Allergies", ", ".join(ps.get("allergies", [])) or "None reported"],
+            ["Total Diagnoses", str(ps.get("diagnoses_count", 0))],
+            ["Active Medications", str(ps.get("medications_count", 0))],
+            ["Lab Tests on Record", str(ps.get("lab_tests_count", 0))],
+        ]
+        story.append(_styled_table(info_data, col_widths=[5 * cm, 12 * cm]))
         story.append(Spacer(1, 4 * mm))
 
-    # ── SECTION 3: HEALTH TRENDS ──────────────────────────────────────
-    story.append(Paragraph("3. Health Trends", styles["section"]))
-    story.append(Spacer(1, 2 * mm))
+    if export_type in ["full", "risk"]:
+        # ── SECTION 2: RISK ASSESSMENT ────────────────────────────────────
+        story.append(Paragraph("Risk Assessment", styles["section"]))
+        story.append(Spacer(1, 2 * mm))
 
-    for label, key, unit in [
-        ("HbA1c", "hba1c", "%"),
-        ("Blood Pressure (Systolic)", "bp", "mmHg"),
-        ("eGFR", "egfr", "mL/min"),
-    ]:
-        values = trends.get(key, [])
-        if values:
-            story.append(Paragraph(f"{label} ({unit}):", styles["bold"]))
+        immediate_risks = risk.get("immediate_risks", [])
+        if immediate_risks:
+            risk_data = [["Condition", "Risk Level"]]
+            for r in immediate_risks:
+                risk_data.append([
+                    str(r.get("condition", "Unknown")),
+                    str(r.get("level", "Unknown"))
+                ])
+            story.append(Paragraph("Immediate Risks:", styles["bold"]))
             story.append(Spacer(1, 1 * mm))
-            t_data = [["Date", "Value"]]
-            for v in values:
-                t_data.append([str(v.get("date", "")), str(v.get("value", ""))])
-            story.append(_styled_table(t_data, col_widths=[8 * cm, 9 * cm]))
+            story.append(_styled_table(risk_data, col_widths=[12 * cm, 5 * cm]))
             story.append(Spacer(1, 3 * mm))
         else:
-            story.append(Paragraph(f"{label}: No data available.", styles["body"]))
+            story.append(Paragraph("No immediate risks identified.", styles["body"]))
             story.append(Spacer(1, 2 * mm))
 
-    # ── SECTION 4: CLINICAL RECOMMENDATIONS ───────────────────────────
-    story.append(Paragraph("4. Clinical Recommendations", styles["section"]))
-    story.append(Spacer(1, 2 * mm))
+        interactions = risk.get("drug_interactions", [])
+        if interactions:
+            story.append(Paragraph("Drug Interactions:", styles["bold"]))
+            story.append(Spacer(1, 1 * mm))
+            int_data = [["Drugs", "Description", "Severity"]]
+            for inter in interactions:
+                drugs = ", ".join(inter.get("drugs", []))
+                int_data.append([
+                    drugs,
+                    str(inter.get("description", "")),
+                    str(inter.get("severity", ""))
+                ])
+            story.append(_styled_table(int_data, col_widths=[5 * cm, 8 * cm, 4 * cm]))
+            story.append(Spacer(1, 4 * mm))
 
-    summary = recs.get("clinical_summary", "No clinical summary available.")
-    story.append(Paragraph(f"<b>Clinical Summary:</b> {summary}", styles["body"]))
-    story.append(Spacer(1, 3 * mm))
+    if export_type in ["full", "medications"]:
+        story.append(Paragraph("Medication Analysis", styles["section"]))
+        story.append(Spacer(1, 2 * mm))
+        story.append(Paragraph(f"Current Regimen: {ps.get('medications_count', 0)} active medications.", styles["body"]))
+        story.append(Spacer(1, 4 * mm))
 
-    priorities = recs.get("immediate_priorities", [])
-    if priorities:
-        story.append(Paragraph("<b>Immediate Priorities:</b>", styles["body"]))
-        for i, p in enumerate(priorities, 1):
-            story.append(Paragraph(f"  {i}. {p}", styles["body"]))
+    if export_type in ["full", "trends"]:
+        # ── SECTION: HEALTH TRENDS ──────────────────────────────────────
+        story.append(Paragraph("Health Trends", styles["section"]))
+        story.append(Spacer(1, 2 * mm))
+
+        # HbA1c Table
+        hba1c_vals = trends.get("hba1c", [])
+        if hba1c_vals:
+            story.append(Paragraph("HbA1c (%):", styles["bold"]))
+            story.append(Spacer(1, 1 * mm))
+            t_data = [["Date", "Value", "Reference", "Status"]]
+            for v in hba1c_vals:
+                val = float(v.get("value", 0))
+                status = "High" if val > 5.7 else "Normal"
+                t_data.append([str(v.get("date", "")), str(v.get("value", "")), "< 5.7", status])
+            story.append(_styled_table(t_data, col_widths=[4 * cm, 4 * cm, 4 * cm, 4 * cm]))
+            story.append(Spacer(1, 3 * mm))
+
+        # BP Table
+        bp_vals = trends.get("bp", [])
+        if bp_vals:
+            story.append(Paragraph("Blood Pressure (mmHg):", styles["bold"]))
+            story.append(Spacer(1, 1 * mm))
+            t_data = [["Date", "Systolic", "Diastolic", "Status"]]
+            for v in bp_vals:
+                try:
+                    sys, dia = map(int, str(v.get("value", "0/0")).split("/"))
+                    status = "High" if sys > 130 or dia > 80 else "Normal"
+                except:
+                    sys, dia, status = "0", "0", "Unknown"
+                t_data.append([str(v.get("date", "")), str(sys), str(dia), status])
+            story.append(_styled_table(t_data, col_widths=[4 * cm, 4 * cm, 4 * cm, 4 * cm]))
+            story.append(Spacer(1, 3 * mm))
+
+        # eGFR Table
+        egfr_vals = trends.get("egfr", [])
+        if egfr_vals:
+            story.append(Paragraph("eGFR (mL/min):", styles["bold"]))
+            story.append(Spacer(1, 1 * mm))
+            t_data = [["Date", "Value", "Reference", "Status"]]
+            for v in egfr_vals:
+                try:
+                    val = float(str(v.get("value", "0")).replace("> ", ""))
+                    status = "Normal" if val >= 60 else "Low"
+                except:
+                    val, status = 0, "Unknown"
+                t_data.append([str(v.get("date", "")), str(v.get("value", "")), "> 60", status])
+            story.append(_styled_table(t_data, col_widths=[4 * cm, 4 * cm, 4 * cm, 4 * cm]))
+            story.append(Spacer(1, 3 * mm))
+
+    if export_type in ["full", "summary", "recommendations"]:
+        # ── SECTION: CLINICAL RECOMMENDATIONS ───────────────────────────
+        story.append(Paragraph("Clinical Recommendations", styles["section"]))
+        story.append(Spacer(1, 2 * mm))
+
+        summary_text = recs.get("clinical_summary", "No clinical summary available.")
+        story.append(Paragraph(f"<b>Clinical Summary:</b> {summary_text}", styles["body"]))
         story.append(Spacer(1, 3 * mm))
 
-    actions = recs.get("recommended_actions", [])
-    if actions:
-        story.append(Paragraph("<b>Recommended Actions:</b>", styles["body"]))
-        for i, a in enumerate(actions, 1):
-            story.append(Paragraph(f"  {i}. {a}", styles["body"]))
-        story.append(Spacer(1, 3 * mm))
+        priorities = recs.get("immediate_priorities", [])
+        if priorities:
+            story.append(Paragraph("<b>Immediate Priorities:</b>", styles["body"]))
+            for i, p in enumerate(priorities, 1):
+                story.append(Paragraph(f"  {i}. {p}", styles["body"]))
+            story.append(Spacer(1, 3 * mm))
 
-    risk_signals = recs.get("key_risk_signals", {})
-    if risk_signals:
-        story.append(Paragraph("<b>Key Risk Signals:</b>", styles["body"]))
-        for k, v in risk_signals.items():
-            story.append(Paragraph(f"  • {k}: {v}", styles["body"]))
+        actions = recs.get("recommended_actions", [])
+        if actions:
+            story.append(Paragraph("<b>Recommended Actions:</b>", styles["body"]))
+            for i, a in enumerate(actions, 1):
+                story.append(Paragraph(f"  {i}. {a}", styles["body"]))
+            story.append(Spacer(1, 3 * mm))
+
+    if export_type == "full":
+        story.append(Paragraph("Audit Log", styles["section"]))
+        story.append(Spacer(1, 2 * mm))
+        story.append(Paragraph(f"Report accessed and generated by {doctor_name} at {now.strftime('%d-%b-%Y %H:%M UTC')}", styles["body"]))
         story.append(Spacer(1, 4 * mm))
 
     # ── FOOTER / DISCLAIMER ───────────────────────────────────────────
     story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER, spaceBefore=6 * mm))
     story.append(Paragraph(
-        f"CONFIDENTIAL — Generated on {now.strftime('%Y-%m-%d %H:%M UTC')} for {doctor_name}. "
-        "This report is for clinical reference only.",
+        f"Confidential - For authorized medical use only. Generated on: {now.strftime('%d-%b-%Y %H:%M')} | Patient: {ps.get('name', 'Rajesh Patel')} | ID: {ps.get('patient_id', 'Unknown')}",
         styles["footer"]
     ))
     story.append(Paragraph(
@@ -278,6 +303,75 @@ def generate_medical_report_pdf(dashboard_data: dict, doctor_name: str = "Doctor
         styles["disclaimer"]
     ))
 
+    doc.build(story)
+    buf.seek(0)
+    return buf
+
+def generate_patient_medical_records_pdf(patient_id: str, patient_data: dict) -> io.BytesIO:
+    buf = io.BytesIO()
+    styles = _build_styles()
+
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=2 * cm, rightMargin=2 * cm,
+        topMargin=2 * cm, bottomMargin=2.5 * cm,
+        title="Patient Medical Records",
+    )
+
+    story = []
+    now = datetime.now(timezone.utc)
+
+    # ── HEADER ────────────────────────────────────────────────────────
+    story.append(Paragraph("Patient Medical Records", styles["title"]))
+    story.append(Paragraph(
+        f"Generated on: {now.strftime('%d-%b-%Y %H:%M')} | Patient ID: {patient_id}",
+        styles["subtitle"]
+    ))
+    story.append(HRFlowable(width="100%", thickness=1, color=SECONDARY, spaceAfter=4 * mm))
+
+    # Diagnoses
+    story.append(Paragraph("Diagnoses", styles["section"]))
+    story.append(Spacer(1, 2 * mm))
+    diagnoses = patient_data.get("diagnoses", [])
+    if diagnoses:
+        d_data = [["Condition", "Code", "Date"]]
+        for d in diagnoses:
+            d_data.append([str(d.get("name")), str(d.get("code")), str(d.get("date_of_diagnosis"))])
+        story.append(_styled_table(d_data, col_widths=[8 * cm, 4 * cm, 5 * cm]))
+    else:
+        story.append(Paragraph("No diagnoses on record.", styles["body"]))
+    story.append(Spacer(1, 4 * mm))
+
+    # Medications
+    story.append(Paragraph("Medications", styles["section"]))
+    story.append(Spacer(1, 2 * mm))
+    meds = patient_data.get("medications", [])
+    if meds:
+        m_data = [["Medication", "Dosage", "Status"]]
+        for m in meds:
+            m_data.append([str(m.get("name")), str(m.get("dosage")), str(m.get("status"))])
+        story.append(_styled_table(m_data, col_widths=[8 * cm, 5 * cm, 4 * cm]))
+    else:
+        story.append(Paragraph("No active medications on record.", styles["body"]))
+    story.append(Spacer(1, 4 * mm))
+
+    # Labs
+    story.append(Paragraph("Lab Tests", styles["section"]))
+    story.append(Spacer(1, 2 * mm))
+    labs = patient_data.get("labs", [])
+    if labs:
+        l_data = [["Test", "Value", "Date", "Range"]]
+        for l in labs:
+            val = f"{l.get('value')} {l.get('unit', '')}"
+            l_data.append([str(l.get("test_name")), val, str(l.get("date")), str(l.get("reference_range"))])
+        story.append(_styled_table(l_data, col_widths=[6 * cm, 4 * cm, 3 * cm, 4 * cm]))
+    else:
+        story.append(Paragraph("No lab tests on record.", styles["body"]))
+    story.append(Spacer(1, 4 * mm))
+
+    story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER, spaceBefore=6 * mm))
+    story.append(Paragraph("Confidential - Personal Medical Record", styles["footer"]))
+    
     doc.build(story)
     buf.seek(0)
     return buf
