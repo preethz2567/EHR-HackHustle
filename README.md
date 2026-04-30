@@ -10,7 +10,7 @@ HealthBridge is a privacy-first, federated Electronic Health Record (EHR) system
 ### Key Features
 - **Federated Architecture**: Query hospitals A, B, C simultaneously without centralizing data
 - **Patient Consent Control**: Granular control over data access by category (diagnoses, medications, labs, etc.)
-- **AI-Powered Synthesis**: 4 specialized agents analyze patient data, orchestrator creates unified narrative
+- **Rule Based Clinical Engine Powered Synthesis**: 4 specialized agents analyze patient data, orchestrator creates unified narrative
 - **Real-Time Audit Logging**: Every access logged for transparency and compliance
 - **Session-Based Access**: Doctors get 30-min sessions with automatic logout
 - **Manual Report Upload**: Patients can upload vaccine cards, lab reports, discharge summaries
