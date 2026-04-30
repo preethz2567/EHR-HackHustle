@@ -27,12 +27,12 @@ export async function fetchDoctorApi(endpoint, options = {}, tokenType = 'doctor
   }
 
   if (response.status === 401) {
-    if (!endpoint.includes('access-patient-data') && !endpoint.includes('start-session')) {
-      localStorage.removeItem('doctorSessionId');
-      localStorage.removeItem('doctorSessionToken');
-      localStorage.removeItem('currentPatientId');
-      window.location.href = '/doctor/login';
-      throw new Error('Unauthorized');
+    const isAuthEndpoint = endpoint.includes('auth') || endpoint.includes('login');
+    const isAccessEndpoint = endpoint.includes('access-patient-data') || endpoint.includes('verify-access-token');
+    
+    if (!isAuthEndpoint && !isAccessEndpoint) {
+      // Only redirect if it's a critical auth failure on a data endpoint
+      console.error('Session expired or unauthorized access');
     }
   }
   
@@ -65,78 +65,90 @@ export async function authenticateDoctor(email, password) {
 
 /**
  * Simplified token access — doctor provides the patient's 32-char access token.
- * Returns { status, patient_id, patient_data }.
+ * Returns { status, patient_id, doctor_email }.
  */
 export async function accessPatientData(accessToken) {
-  const response = await fetch(`${API_URL}/doctor/access-patient-data`, {
+  const data = await fetchDoctorApi('/doctor/verify-access-token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ access_token: accessToken })
   });
 
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.message || 'Access denied');
-  }
-  return data;
+  // Store patient ID for subsequent calls
+  localStorage.setItem('currentPatientId', data.patient_id);
+  
+  // Fetch actual data using the ID
+  const patientData = await getPatientData(data.patient_id, accessToken);
+  return { status: 'success', patient_id: data.patient_id, patient_data: patientData.patient_data };
 }
 
 /**
  * Start a session by validating the patient's access token.
- * Kept for backward compatibility with the PatientAccess → ChiefComplaint flow.
  */
 export async function startDoctorSession(patientId, accessToken) {
-  // Use the simplified access endpoint directly
   const data = await accessPatientData(accessToken);
   return { session_id: 'simplified_session', patient_id: data.patient_id, patient_data: data.patient_data };
 }
 
 /**
- * Fetch patient data using the stored access token
+ * Fetch patient data using the stored access token and dynamic ID
  */
-export async function getPatientData() {
-  const accessToken = localStorage.getItem('doctorSessionToken');
+export async function getPatientData(patientId, accessTokenOverride) {
+  const accessToken = accessTokenOverride || localStorage.getItem('doctorSessionToken');
+  const id = patientId || localStorage.getItem('currentPatientId');
   if (!accessToken) throw new Error("No access token found");
+  if (!id) throw new Error("No patient ID found");
   
-  const data = await accessPatientData(accessToken);
-  return { patient_data: data.patient_data, patient_id: data.patient_id };
+  const data = await fetchDoctorApi(`/doctor/patient-data/${id}?access_token=${accessToken}`, {
+    method: 'GET'
+  });
+
+  return { patient_data: data.patient_data, patient_id: id };
+}
+
+/**
+ * Trigger AI analysis for the patient
+ */
+export async function analyzePatient(chiefComplaint, context) {
+  const accessToken = localStorage.getItem('doctorSessionToken');
+  const patientId = localStorage.getItem('currentPatientId');
+  
+  if (!accessToken) throw new Error("No access token found");
+  if (!patientId) throw new Error("No patient ID found");
+
+  return fetchDoctorApi(`/doctor/analyze-patient/${patientId}?access_token=${accessToken}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      chief_complaint: chiefComplaint,
+      context: context
+    })
+  });
 }
 
 /**
  * Fetch dashboard-formatted data (including AI analysis)
  */
-export async function getDashboardData() {
+export async function getDashboardData(patientId) {
   const accessToken = localStorage.getItem('doctorSessionToken');
+  const id = patientId || localStorage.getItem('currentPatientId');
   if (!accessToken) throw new Error("No access token found");
+  if (!id) throw new Error("No patient ID found");
   
-  const response = await fetch(`${API_URL}/doctor/dashboard-data`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token: accessToken })
+  return fetchDoctorApi(`/doctor/dashboard-data/${id}?access_token=${accessToken}`, {
+    method: 'GET'
   });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.message || 'Access denied');
-  }
-  return data;
 }
 
 /**
  * Export PDF report via backend
  */
-export async function exportReportPdf(accessToken, exportType = 'full') {
-  const response = await fetch(`${API_URL}/doctor/export-report-pdf`, {
+export async function exportReportPdf(accessToken, exportType = 'full', patientId) {
+  const id = patientId || localStorage.getItem('currentPatientId');
+  if (!id) throw new Error("No patient ID found");
+
+  return fetchDoctorApi(`/doctor/export-report-pdf/${id}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ access_token: accessToken, export_type: exportType }),
   });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.message || 'Export failed');
-  }
-  return data;
 }
 
 /**
@@ -151,15 +163,6 @@ export function getDownloadUrl(filename) {
  */
 export async function exportReport() {
   const accessToken = localStorage.getItem('doctorSessionToken');
-  const response = await fetch(`${API_URL}/doctor/export-report-pdf`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token: accessToken, export_type: 'full' }),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to export report');
-  }
-
-  return response.json();
+  const patientId = localStorage.getItem('currentPatientId');
+  return exportReportPdf(accessToken, 'full', patientId);
 }

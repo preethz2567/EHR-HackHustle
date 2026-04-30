@@ -101,47 +101,25 @@ def create_app():
     # -------------------------------------------------------------------
 
     @app.route("/api/patient/auth", methods=["POST"])
+    @app.route("/api/patient/login", methods=["POST"])
     def patient_auth():
         """
-        Authenticate a patient via biometric + OTP.
-
-        Request JSON:
-            {
-                "patient_id": "P001",
-                "biometric_type": "fingerprint",  // or "iris"
-                "biometric_data": "<raw-biometric-string>",
-                "otp": "123456"
-            }
-
-        Response:
-            {
-                "success": true,
-                "token": "<jwt>",
-                "patient_id": "P001",
-                "message": "Authentication successful"
-            }
+        Authenticate a patient via biometric + OTP OR email + password.
         """
         data = request.get_json(silent=True)
         if not data:
             return jsonify({
-                "success": False,
+                "status": "error",
                 "message": "Request body must be JSON",
             }), 400
 
-        # Required fields
-        required = ["patient_id", "biometric_type", "biometric_data", "otp"]
-        missing = [f for f in required if f not in data]
-        if missing:
-            return jsonify({
-                "success": False,
-                "message": f"Missing required fields: {', '.join(missing)}",
-            }), 400
-
         result = authenticate_patient(
-            patient_id=data["patient_id"],
-            biometric_type=data["biometric_type"],
-            biometric_data=data["biometric_data"],
-            otp=data["otp"],
+            patient_id=data.get("patient_id"),
+            biometric_type=data.get("biometric_type"),
+            biometric_data=data.get("biometric_data"),
+            otp=data.get("otp"),
+            email=data.get("email"),
+            password=data.get("password")
         )
 
         status_code = 200 if result["success"] else 401
@@ -152,42 +130,21 @@ def create_app():
     # -------------------------------------------------------------------
 
     @app.route("/api/doctor/auth", methods=["POST"])
+    @app.route("/api/doctor/login", methods=["POST"])
     def doctor_auth():
         """
         Authenticate a doctor via email + password.
-
-        Request JSON:
-            {
-                "email": "dr.sharma@cityhospital.in",
-                "password": "doctor123"
-            }
-
-        Response:
-            {
-                "success": true,
-                "token": "<jwt>",
-                "doctor_id": "DR-SHARMA",
-                "message": "Authentication successful"
-            }
         """
         data = request.get_json(silent=True)
         if not data:
             return jsonify({
-                "success": False,
+                "status": "error",
                 "message": "Request body must be JSON",
             }), 400
 
-        required = ["email", "password"]
-        missing = [f for f in required if f not in data]
-        if missing:
-            return jsonify({
-                "success": False,
-                "message": f"Missing required fields: {', '.join(missing)}",
-            }), 400
-
         result = authenticate_doctor(
-            email=data["email"],
-            password=data["password"],
+            email=data.get("email"),
+            password=data.get("password"),
         )
 
         status_code = 200 if result["success"] else 401
@@ -198,11 +155,16 @@ def create_app():
     # -------------------------------------------------------------------
 
     @app.route("/api/doctor/access-patient-data", methods=["POST"])
+    @app.route("/api/doctor/verify-access-token", methods=["POST"])
+    @token_required(allowed_roles=["doctor"])
     def access_patient_data():
         """
-        Simplified access mode: Doctor provides the access_token.
-        No JWT needed.
+        Secure access mode: Doctor provides the access_token.
+        Verified against logged-in doctor's email.
         """
+        doctor_user = g.current_user
+        doctor_email = doctor_user.get("email")
+
         data = request.get_json(silent=True) or {}
         access_token = data.get("access_token")
         
@@ -212,6 +174,15 @@ def create_app():
         # Validation checks
         if "AUTHORIZATION_TOKENS" not in globals() or access_token not in AUTHORIZATION_TOKENS:
             return jsonify({"status": "error", "message": "Invalid token"}), 401
+            
+        token_data = AUTHORIZATION_TOKENS[access_token]
+
+        # SECURITY FIX: Ensure the logged-in doctor is the one authorized by the patient
+        if token_data["doctor_email"].lower() != doctor_email.lower():
+            return jsonify({
+                "status": "error", 
+                "message": f"Unauthorized: This token was issued specifically for {token_data['doctor_email']}. You are logged in as {doctor_email}."
+            }), 403
             
         token_data = AUTHORIZATION_TOKENS[access_token]
         
@@ -365,10 +336,15 @@ def create_app():
         )
 
         return jsonify({
-            "success": True,
-            "data_cached": True,
+            "status": "success",
+            "patient_id": patient_id,
+            "data_summary": {
+                "diagnoses_count": cache_info["breakdown"]["diagnoses"],
+                "medications_count": cache_info["breakdown"]["medications"],
+                "labs_count": cache_info["breakdown"]["labs"],
+                "episodes_count": cache_info["breakdown"]["episodes"]
+            },
             "records_count": cache_info["records_count"],
-            "breakdown": cache_info["breakdown"],
             "cached_at": cache_info["cached_at"],
         }), 200
 
@@ -377,26 +353,16 @@ def create_app():
     # -------------------------------------------------------------------
 
     @app.route("/api/patient/<patient_id>/data", methods=["GET"])
+    @app.route("/api/patient/<patient_id>/my-records", methods=["GET"])
     @token_required(allowed_roles=["patient"])
     def get_patient_cached_data(patient_id):
         """
         Retrieve cached unified EHR data for a patient.
-
-        Requires: Patient JWT. Must fetch-historical first.
-
-        Response (cached):
-            {
-                "success": true,
-                "patient_id": "P001",
-                "cached_at": "...",
-                "data": {diagnoses, medications, labs, episodes, ...},
-                "manual_uploads": [...]
-            }
         """
         token_patient = g.current_user["sub"]
         if token_patient != patient_id:
             return jsonify({
-                "success": False,
+                "status": "error",
                 "message": "Access denied. You can only view your own data.",
             }), 403
 
@@ -404,9 +370,8 @@ def create_app():
 
         if cached is None or cached.get("cached_at") is None:
             return jsonify({
-                "success": False,
-                "message": "No cached data found. Please call POST /api/patient/<id>/fetch-historical first.",
-                "data_cached": False,
+                "status": "error",
+                "message": "No cached data found. Please fetch data first.",
             }), 404
 
         log_patient_action(
@@ -416,7 +381,7 @@ def create_app():
         )
 
         return jsonify({
-            "success": True,
+            "status": "success",
             "patient_id": patient_id,
             "cached_at": cached["cached_at"],
             "last_refreshed": cached["last_refreshed"],
@@ -635,6 +600,7 @@ def create_app():
         return jsonify({
             "status": "success",
             "access_token": token,
+            "patient_id": patient_id,
             "expires_in_minutes": 30,
             "expires_at": expiry.isoformat(),
             "message": "Share this token with your doctor. Valid for 30 minutes only."
@@ -1118,104 +1084,203 @@ def create_app():
             "status": "success"
         }
 
-    @app.route("/api/doctor/dashboard-data", methods=["POST"])
-    def dashboard_data():
+    @app.route("/api/doctor/verify-access-token", methods=["POST"])
+    def verify_access_token():
         """
-        Format patient data and analysis results for the dashboard UI.
-        Simplified to use only access_token.
+        Simplified access token verification for doctors.
         """
         data = request.get_json(silent=True) or {}
         access_token = data.get("access_token")
 
         if not access_token or "AUTHORIZATION_TOKENS" not in globals() or access_token not in AUTHORIZATION_TOKENS:
-            return jsonify({"status": "error", "message": "Access denied"}), 401
+            return jsonify({"status": "error", "message": "Invalid token"}), 401
 
         token_data = AUTHORIZATION_TOKENS[access_token]
         if token_data["status"] == "revoked":
-            return jsonify({"status": "error", "message": "Token has been revoked by patient"}), 401
+            return jsonify({"status": "error", "message": "Token revoked"}), 401
             
         from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
-        if datetime.fromisoformat(token_data["expires_at"]) < now:
-            return jsonify({"status": "error", "message": "Token has expired"}), 401
+        if datetime.fromisoformat(token_data["expires_at"]) < datetime.now(timezone.utc):
+            return jsonify({"status": "error", "message": "Token expired"}), 401
 
-        doctor_email = token_data["doctor_email"]
-        patient_id = token_data["patient_id"]
+        return jsonify({
+            "status": "success",
+            "patient_id": token_data["patient_id"],
+            "doctor_email": token_data["doctor_email"]
+        }), 200
+
+    @app.route("/api/doctor/patient-data/<patient_id>", methods=["GET"])
+    def get_patient_data_dynamic(patient_id):
+        """
+        Retrieve patient data via access token.
+        """
+        access_token = request.args.get("access_token")
+        
+        # fallback for testing
+        if not access_token:
+            access_token = request.headers.get("X-Access-Token")
+
+        if not access_token or access_token not in AUTHORIZATION_TOKENS:
+            return jsonify({"status": "error", "message": "Invalid token"}), 401
+
+        token_data = AUTHORIZATION_TOKENS[access_token]
+        if token_data["patient_id"] != patient_id:
+            return jsonify({"status": "error", "message": "Token not valid for this patient"}), 403
 
         from api.patient_cache import PATIENT_CACHE
         if patient_id not in PATIENT_CACHE:
-            return jsonify({"status": "error", "message": "Patient data not found in cache."}), 404
+            return jsonify({"status": "error", "message": "Patient data not found"}), 404
+
+        patient_data = PATIENT_CACHE[patient_id].get("unified_data", {})
+        
+        # Apply consent filtering (Mock)
+        from core.consent_gateway import apply_consent
+        from core.privacy_model import PATIENT_CONSENT_PROFILES, ConsentPreferences
+        
+        # fallback to fully open if patient profile missing
+        default_pref = ConsentPreferences(patient_id=patient_id)
+        patient_pref = PATIENT_CONSENT_PROFILES.get(patient_id, default_pref)
+        filtered_data = apply_consent(patient_data, patient_pref, "Doctor API")
+
+        return jsonify({
+            "status": "success",
+            "patient_id": patient_id,
+            "patient_data": filtered_data
+        }), 200
+
+    @app.route("/api/doctor/analyze-patient/<patient_id>", methods=["POST"])
+    @token_required(allowed_roles=["doctor"])
+    def analyze_patient_dynamic(patient_id):
+        """
+        Trigger AI agents on patient data.
+        """
+        doctor_user = g.current_user
+        doctor_email = doctor_user.get("email")
+
+        data = request.get_json(silent=True) or {}
+        access_token = data.get("access_token") or request.args.get("access_token")
+
+        if not access_token or access_token not in AUTHORIZATION_TOKENS:
+            return jsonify({"status": "error", "message": "Invalid access token"}), 401
+
+        token_data = AUTHORIZATION_TOKENS[access_token]
+
+        # Verify doctor identity
+        if token_data["doctor_email"].lower() != doctor_email.lower():
+            return jsonify({
+                "status": "error", 
+                "message": f"Unauthorized: Access token is for {token_data['doctor_email']}"
+            }), 403
+
+        if token_data["patient_id"] != patient_id:
+            return jsonify({"status": "error", "message": "Token mismatch for this patient"}), 403
+
+        from api.patient_cache import PATIENT_CACHE
+        if patient_id not in PATIENT_CACHE:
+            return jsonify({"status": "error", "message": "Patient data not found"}), 404
+
+        patient_data = PATIENT_CACHE[patient_id].get("unified_data", {})
+        
+        try:
+            from api.agents import run_analysis_agents
+            analysis_result = run_analysis_agents(patient_id, patient_data)
+            ANALYSIS_CACHE[patient_id] = analysis_result
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"Analysis failed: {str(e)}"}), 500
+
+        return jsonify({
+            "status": "success",
+            "patient_id": patient_id,
+            "analysis": analysis_result
+        }), 200
+
+    @app.route("/api/doctor/dashboard-data/<patient_id>", methods=["GET", "POST"])
+    @token_required(allowed_roles=["doctor"])
+    def dashboard_data_dynamic(patient_id):
+        """
+        Format patient data and analysis results for the dashboard UI.
+        """
+        doctor_user = g.current_user
+        doctor_email = doctor_user.get("email")
+
+        if request.method == "POST":
+            data = request.get_json(silent=True) or {}
+            access_token = data.get("access_token") or request.args.get("access_token")
+        else:
+            access_token = request.args.get("access_token")
+
+        if not access_token or access_token not in AUTHORIZATION_TOKENS:
+            return jsonify({"status": "error", "message": "Access denied"}), 401
+
+        token_data = AUTHORIZATION_TOKENS[access_token]
+
+        # Verify doctor identity
+        if token_data["doctor_email"].lower() != doctor_email.lower():
+            return jsonify({
+                "status": "error", 
+                "message": f"Unauthorized: Access token is for {token_data['doctor_email']}"
+            }), 403
+
+        if token_data["patient_id"] != patient_id:
+            return jsonify({"status": "error", "message": "Token mismatch"}), 403
+
+        from api.patient_cache import PATIENT_CACHE
+        if patient_id not in PATIENT_CACHE:
+            return jsonify({"status": "error", "message": "Patient data not found"}), 404
 
         patient_data = PATIENT_CACHE[patient_id].get("unified_data", {})
 
         if patient_id not in ANALYSIS_CACHE:
-            try:
-                run_analysis_agents(patient_id, patient_data)
-            except Exception as e:
-                return jsonify({"status": "error", "message": f"Analysis failed: {str(e)}"}), 500
+            from api.agents import run_analysis_agents
+            ANALYSIS_CACHE[patient_id] = run_analysis_agents(patient_id, patient_data)
 
         result = _build_dashboard_dict(patient_id, patient_data, ANALYSIS_CACHE[patient_id])
+        result["patient_id"] = patient_id
 
         log_doctor_action(
-            doctor_email, "access_dashboard", patient_id,
-            {"message": "Doctor accessed dashboard data", "access_method": "token"}, "success"
+            token_data["doctor_email"], "access_dashboard", patient_id,
+            {"message": "Doctor accessed dashboard data"}, "success"
         )
 
         return jsonify(result), 200
 
-    # -------------------------------------------------------------------
-    # DOCTOR PDF EXPORT
-    # -------------------------------------------------------------------
-
-    @app.route("/api/doctor/export-report-pdf", methods=["POST"])
-    def export_report_pdf():
+    @app.route("/api/doctor/export-report-pdf/<patient_id>", methods=["POST"])
+    def export_report_pdf_dynamic(patient_id):
         """
-        Generate and save a PDF medical report for the patient.
+        Generate PDF medical report.
         """
-        from flask import send_file
-        from api.pdf_generator import generate_medical_report_pdf
-        import os
-
         data = request.get_json(silent=True) or {}
         access_token = data.get("access_token")
         export_type = data.get("export_type", "full")
         
-        if not access_token or "AUTHORIZATION_TOKENS" not in globals() or access_token not in AUTHORIZATION_TOKENS:
+        if not access_token or access_token not in AUTHORIZATION_TOKENS:
             return jsonify({"status": "error", "message": "Access denied"}), 401
             
         token_data = AUTHORIZATION_TOKENS[access_token]
-        if token_data["status"] == "revoked":
-            return jsonify({"status": "error", "message": "Token has been revoked by patient"}), 401
-            
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
-        if datetime.fromisoformat(token_data["expires_at"]) < now:
-            return jsonify({"status": "error", "message": "Token has expired"}), 401
-
-        doctor_email = token_data["doctor_email"]
-        patient_id = token_data["patient_id"]
+        if token_data["patient_id"] != patient_id:
+            return jsonify({"status": "error", "message": "Token mismatch"}), 403
 
         from api.patient_cache import PATIENT_CACHE
         if patient_id not in PATIENT_CACHE:
-            return jsonify({"status": "error", "message": "No data to export"}), 404
+            return jsonify({"status": "error", "message": "No data"}), 404
 
         patient_data = PATIENT_CACHE[patient_id].get("unified_data", {})
 
         if patient_id not in ANALYSIS_CACHE:
-            try:
-                run_analysis_agents(patient_id, patient_data)
-            except Exception as e:
-                return jsonify({"status": "error", "message": f"PDF generation failed"}), 500
+            from api.agents import run_analysis_agents
+            ANALYSIS_CACHE[patient_id] = run_analysis_agents(patient_id, patient_data)
 
         dashboard = _build_dashboard_dict(patient_id, patient_data, ANALYSIS_CACHE[patient_id])
 
-        # Generate PDF
+        from api.pdf_generator import generate_medical_report_pdf
+        import os
         try:
-            pdf_buf = generate_medical_report_pdf(dashboard, doctor_name=doctor_email, export_type=export_type)
-        except Exception:
-            return jsonify({"status": "error", "message": "PDF generation failed"}), 500
+            pdf_buf = generate_medical_report_pdf(dashboard, doctor_name=token_data["doctor_email"], export_type=export_type)
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"PDF failed: {str(e)}"}), 500
 
-        ts = now.strftime("%d%b%Y_%H%M")
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).strftime("%d%b%Y_%H%M")
         filename = f"Patient_{patient_id}_{export_type}_{ts}.pdf"
         
         exports_dir = "./exports"
@@ -1225,16 +1290,11 @@ def create_app():
         with open(filepath, "wb") as f:
             f.write(pdf_buf.getvalue())
 
-        log_doctor_action(
-            doctor_email, "export_report", patient_id,
-            {"message": f"Doctor exported PDF report", "filename": filename}, "success"
-        )
-
         return jsonify({
             "status": "success",
+            "patient_id": patient_id,
             "filename": filename,
-            "download_url": f"/api/download/{filename}",
-            "message": "Report generated successfully"
+            "download_url": f"/api/download/{filename}"
         }), 201
 
     @app.route("/api/download/<filename>", methods=["GET"])
@@ -1345,27 +1405,25 @@ if __name__ == "__main__":
     print("=" * 65)
     print()
     print("  Auth:")
-    print("    POST /api/patient/auth                     Biometric + OTP")
-    print("    POST /api/doctor/auth                      Email + password")
-    print("    POST /api/doctor/session                   30-min session")
+    print("    POST /api/patient/login                    ID + email + password")
+    print("    POST /api/doctor/login                     Email + password")
     print()
     print("  Patient Portal:")
-    print("    POST /api/patient/<id>/fetch-historical    Fetch & cache EHR")
-    print("    GET  /api/patient/<id>/data                Get cached data")
-    print("    POST /api/patient/<id>/upload-manual       Upload records")
-    print("    POST /api/patient/<id>/generate-access-token  Share access")
-    print("    GET  /api/patient/<id>/audit-log           Audit trail")
+    print("    POST /api/patient/<id>/fetch-historical    Dynamic federated fetch")
+    print("    GET  /api/patient/<id>/my-records          Get dynamic cached EHR")
+    print("    POST /api/patient/<id>/upload-manual       Dynamic file upload")
+    print("    POST /api/patient/<id>/generate-access-token  Share dynamic access")
     print()
-    print("  Doctor:")
-    print("    GET  /api/doctor/patient/<id>              View patient (session)")
+    print("  Doctor Portal (Dynamic):")
+    print("    POST /api/doctor/verify-access-token       Get patient_id from token")
+    print("    GET  /api/doctor/patient-data/<id>         View patient data")
+    print("    POST /api/doctor/analyze-patient/<id>      Run AI analysis")
+    print("    GET  /api/doctor/dashboard-data/<id>       Get dashboard results")
+    print("    POST /api/doctor/export-report-pdf/<id>    Generate report PDF")
     print()
-    print("  System:")
-    print("    GET  /api/patient/data                     Legacy self-access")
-    print("    GET  /api/audit/log                        Global audit")
-    print("    GET  /api/health                           Health check")
-    print()
-    print("  Demo Credentials:")
-    print("    Patient: P001, fingerprint: P001-fingerprint-template, OTP: 123456")
-    print("    Doctor:  dr.sharma@cityhospital.in / doctor123")
+    print("  Synthetic Patients:")
+    print("    P001: Rajesh Kumar (rajesh@example.com / password123)")
+    print("    P002: Priya Sharma (priya@example.com / password123)")
+    print("    P003: Amit Patel   (amit@example.com   / password123)")
     print("=" * 65)
     app.run(host="0.0.0.0", port=5000, debug=Config.DEBUG)

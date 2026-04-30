@@ -28,6 +28,7 @@ PATIENT_BIOMETRIC_STORE = {
         "fingerprint_hash": hashlib.sha256(b"P001-fingerprint-template").hexdigest(),
         "iris_hash": hashlib.sha256(b"P001-iris-template").hexdigest(),
         "name": "Rajesh Kumar",
+        "email": "rajesh@example.com",
         "abha_id": "ABHA-1234-5678-9001",
     },
     "P002": {
@@ -179,6 +180,7 @@ def authenticate_patient(patient_id: str, biometric_type: str,
         "success": True,
         "token": token,
         "patient_id": patient_id,
+        "name": patient["name"],
         "message": "Authentication successful",
     }
 

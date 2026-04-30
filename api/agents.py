@@ -611,3 +611,35 @@ def orchestrator(risk_output: dict, meds_output: dict,
         "key_risk_signals": key_risk_signals,
         "recommended_actions": actions[:6]
     }
+
+def run_analysis_agents(patient_id: str, patient_data: dict) -> dict:
+    """
+    Run the 4 agents in parallel and synthesize their outputs.
+    """
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        f_risk = executor.submit(agent_risk, patient_data)
+        f_meds = executor.submit(agent_meds, patient_data)
+        f_eps = executor.submit(agent_episodes, patient_data)
+        f_labs = executor.submit(agent_labs, patient_data)
+
+        risk_out = f_risk.result()
+        meds_out = f_meds.result()
+        eps_out = f_eps.result()
+        labs_out = f_labs.result()
+
+    synth = orchestrator(risk_out, meds_out, eps_out, labs_out)
+
+    import datetime
+    return {
+        "patient_id": patient_id,
+        "analysis_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "agent_outputs": {
+            "risk": risk_out,
+            "medications": meds_out,
+            "episodes": eps_out,
+            "labs": labs_out
+        },
+        "orchestrator_synthesis": synth
+    }

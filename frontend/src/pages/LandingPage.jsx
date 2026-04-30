@@ -1,240 +1,196 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Shield, Activity, Network, ChevronDown, CheckCircle2, User, UserPlus, HeartPulse, Stethoscope, Mail, Phone, MapPin } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { 
+  HeartPulse, Shield, Activity, Network, ChevronDown, 
+  ArrowRight, ShieldCheck, Globe, Database, Star, 
+  Zap, Lock, Users, Stethoscope, User, CheckCircle2
+} from 'lucide-react';
 import './LandingPage.css';
 
 export default function LandingPage() {
-  const navigate = useNavigate();
   const [isScrolled, setIsScrolled] = useState(false);
-  const [showLoginMenu, setShowLoginMenu] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (element) element.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
     <div className="landing-page">
-      {/* Navigation */}
+      {/* Navbar */}
       <nav className={`navbar ${isScrolled ? 'scrolled' : ''}`}>
         <div className="container nav-content">
-          <div className="logo-container">
-            <HeartPulse className="logo-icon" size={28} />
-            <span className="logo-text">HealthBridge <span className="text-teal">India</span></span>
-          </div>
+          <Link to="/" className="logo-container">
+            <HeartPulse className="logo-icon" size={32} />
+            <span>HealthBridge</span>
+          </Link>
           
           <div className="nav-links">
-            <button onClick={() => scrollToSection('about')} className="nav-link">About</button>
-            <button onClick={() => scrollToSection('features')} className="nav-link">Features</button>
-            <button onClick={() => scrollToSection('contact')} className="nav-link">Contact</button>
-            
-            <div className="dropdown-container" 
-                 onMouseEnter={() => setShowLoginMenu(true)}
-                 onMouseLeave={() => setShowLoginMenu(false)}>
-              <button className="nav-link login-btn">
-                Login <ChevronDown size={16} />
-              </button>
-              {showLoginMenu && (
-                <div className="dropdown-menu">
-                  <Link to="/login" className="dropdown-item">
-                    <User size={16} /> Patient Login
-                  </Link>
-                  <Link to="/doctor/login" className="dropdown-item">
-                    <Stethoscope size={16} /> Doctor Login
-                  </Link>
-                </div>
-              )}
-            </div>
+            <a href="#features" className="nav-link">Network</a>
+            <a href="#security" className="nav-link">Security</a>
+            <a href="#about" className="nav-link">About Us</a>
+            <Link to="/login" className="nav-link">Patient Portal</Link>
+            <Link to="/doctor/login" className="nav-link nav-cta">Provider Login</Link>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
       <section className="hero">
-        <div className="hero-bg-shapes">
-          <div className="shape shape-1"></div>
-          <div className="shape shape-2"></div>
-        </div>
         <div className="container hero-content">
-          <div className="hero-text animate-fade-in-up">
-            <div className="badge-pill">India's Leading Health Information Network</div>
+          <div className="hero-text animate-up">
+            <span className="hero-tag">India's Unified Health Identity Network</span>
             <h1 className="hero-title">
-              Unified Patient Records <br/>
-              <span className="text-gradient">Across Providers</span>
+              Your Medical History. <br />
+              <span className="text-gradient">Fully Connected.</span>
             </h1>
             <p className="hero-subtitle">
-              Access your complete medical history anytime, anywhere. We connect fragmented health data securely using the ABHA framework, giving you control and doctors the insights they need.
+              HealthBridge securely connects your health data across hospitals and clinics using the ABDM framework. Access your complete records anytime, anywhere.
             </p>
-            <div className="hero-cta">
+            <div className="hero-actions">
               <Link to="/login" className="btn btn-primary">
-                I'm a Patient
+                Get Started <ArrowRight size={20} />
               </Link>
-              <Link to="/doctor/login" className="btn btn-outline-white">
-                I'm a Doctor
+              <Link to="/doctor/login" className="btn btn-outline">
+                Provider Portal
               </Link>
             </div>
             <p className="hero-hint" onClick={() => scrollToSection('features')}>
-              Learn more below <ChevronDown size={16} />
+              Learn how it works <ChevronDown size={16} />
             </p>
+          </div>
+          
+          <div className="hero-image-container">
+            <img 
+              src="https://images.unsplash.com/photo-1576091160550-2173ff9e5eb3?auto=format&fit=crop&w=1000&q=80" 
+              alt="Connected Healthcare" 
+              className="hero-main-img"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="stats-strip">
+        <div className="container stats-grid">
+          <div className="stat-item">
+            <div className="stat-num">1.2M+</div>
+            <div className="stat-label">Linked ABHA IDs</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-num">1,200+</div>
+            <div className="stat-label">Hospitals Integrated</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-num">100%</div>
+            <div className="stat-label">Data Ownership</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-num">24/7</div>
+            <div className="stat-label">Emergency Access</div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="features-section">
+      <section id="features" className="features">
         <div className="container">
-          <div className="section-header text-center">
-            <h2 className="section-title">A New Era of Healthcare Interoperability</h2>
-            <p className="section-subtitle">Seamlessly integrating data from hospitals, clinics, and labs into one secure ecosystem.</p>
+          <div className="section-head">
+            <h2 className="section-title">A Secure, Interoperable Ecosystem</h2>
+            <p className="section-subtitle">Bridging the gap between hospitals, clinics, and labs nation-wide.</p>
           </div>
-
+          
           <div className="features-grid">
-            {/* Feature 1 */}
             <div className="feature-card">
-              <div className="feature-icon-wrapper bg-blue-100">
-                <Network className="feature-icon text-blue" size={32} />
-              </div>
-              <h3>Federated Data</h3>
-              <p>Access and merge records from multiple hospitals instantly. No more carrying paper files or missing critical history during emergencies.</p>
+              <div className="feature-icon"><Network size={32} /></div>
+              <h3>Federated Query</h3>
+              <p>Search and merge your records from Apollo, Fortis, and Manipal hospitals instantly without carrying paper files.</p>
             </div>
 
-            {/* Feature 2 */}
             <div className="feature-card">
-              <div className="feature-icon-wrapper bg-teal-100">
-                <Shield className="feature-icon text-teal" size={32} />
-              </div>
-              <h3>Patient Control</h3>
-              <p>You own your data. Use ABHA and biometric consent to dynamically control exactly who sees what, maintaining complete privacy.</p>
+              <div className="feature-icon" style={{ color: '#0d9488' }}><ShieldCheck size={32} /></div>
+              <h3>Consent-First</h3>
+              <p>You decide who sees your records. Grant time-bound access via biometric or OTP verification for total privacy.</p>
             </div>
 
-            {/* Feature 3 */}
             <div className="feature-card">
-              <div className="feature-icon-wrapper bg-purple-100">
-                <Activity className="feature-icon text-purple" size={32} />
-              </div>
-              <h3>AI-Powered Insights</h3>
-              <p>Intelligent agent networks analyze medications, labs, and history in seconds to provide doctors with critical alerts and recommendations.</p>
+              <div className="feature-icon" style={{ color: '#8b5cf6' }}><Zap size={32} /></div>
+              <h3>Clinical Intel</h3>
+              <p>Advanced agent networks analyze disparate records to provide doctors with critical alerts and health trends.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="testimonials-section bg-light-gray">
-        <div className="container">
-          <div className="section-header text-center">
-            <h2 className="section-title">Trusted by Healthcare Leaders</h2>
-            <p className="section-subtitle">See how HealthBridge is transforming clinical outcomes and patient experiences.</p>
-          </div>
-
-          <div className="testimonials-grid">
-            <div className="testimonial-card">
-              <div className="stars">★★★★★</div>
-              <p className="quote">"The federated query system is a game-changer. I no longer have to guess what medications a patient was prescribed at another facility. The AI insights highlight critical interactions instantly."</p>
-              <div className="author">
-                <div className="avatar bg-blue">DR</div>
-                <div className="author-info">
-                  <h4>Dr. Rajesh Kumar</h4>
-                  <span>Chief Cardiologist, Apollo Hospitals</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="testimonial-card">
-              <div className="stars">★★★★★</div>
-              <p className="quote">"I manage chronic conditions for my elderly parents. With HealthBridge, I just link their ABHA IDs, and every doctor visit is synced. Giving consent via fingerprint is so secure and easy."</p>
-              <div className="author">
-                <div className="avatar bg-teal">PS</div>
-                <div className="author-info">
-                  <h4>Priya Sharma</h4>
-                  <span>Patient Caregiver, Bengaluru</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="testimonial-card">
-              <div className="stars">★★★★★</div>
-              <p className="quote">"Before HealthBridge, consolidating scattered PDF reports took 20 minutes per patient. Now, the Orchestrator agent summarizes their entire 10-year history in 3 seconds. Incredible."</p>
-              <div className="author">
-                <div className="avatar bg-purple">AM</div>
-                <div className="author-info">
-                  <h4>Dr. Anjali Menon</h4>
-                  <span>Internal Medicine, Manipal Hospitals</span>
-                </div>
-              </div>
+      {/* Security Section */}
+      <section id="security" className="security-section">
+        <div className="container security-grid">
+          <div className="security-visual">
+            <div className="shield-blob">
+              <Lock size={80} color="white" />
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="bottom-cta">
-        <div className="container">
-          <div className="cta-content">
-            <h2>Ready to transform your healthcare experience?</h2>
-            <p>Join thousands of doctors and patients already on HealthBridge India.</p>
-            <div className="cta-buttons">
-              <Link to="/login" className="btn btn-white text-blue font-bold">Register as Patient</Link>
-              <Link to="/doctor/login" className="btn btn-outline-white">Register as Provider</Link>
-            </div>
+          <div className="security-text">
+            <span className="badge">Trust & Security</span>
+            <h2>Military-Grade Data Protection</h2>
+            <p>Your data is encrypted at rest and in transit. HealthBridge does not store your clinical data; we facilitate secure, encrypted peer-to-peer exchanges between providers upon your explicit consent.</p>
+            <ul className="security-list">
+              <li><CheckCircle2 size={20} className="check-icon" /> HIPAA & ABDM Compliant</li>
+              <li><CheckCircle2 size={20} className="check-icon" /> SHA-256 Encryption</li>
+              <li><CheckCircle2 size={20} className="check-icon" /> Blockchain Audit Logs</li>
+            </ul>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer id="contact" className="footer">
+      <footer className="footer">
         <div className="container">
           <div className="footer-grid">
             <div className="footer-brand">
               <div className="logo-container">
-                <HeartPulse size={24} />
-                <span className="logo-text">HealthBridge <span className="text-teal">India</span></span>
+                <HeartPulse className="logo-icon" size={28} />
+                <span>HealthBridge</span>
               </div>
-              <p>Building the secure, interoperable backbone for India's digital health infrastructure.</p>
+              <p>Pioneering the next generation of India's health information backbone.</p>
             </div>
             
-            <div className="footer-links">
+            <div className="footer-col">
               <h4>Platform</h4>
               <ul>
-                <li><a href="#">Patient Portal</a></li>
-                <li><a href="#">Doctor Dashboard</a></li>
-                <li><a href="#">Hospital Integration</a></li>
-                <li><a href="#">ABHA Verification</a></li>
+                <li><Link to="/login">Patient Portal</Link></li>
+                <li><Link to="/doctor/login">Provider Access</Link></li>
+                <li><a href="#">Network Status</a></li>
               </ul>
             </div>
-            
-            <div className="footer-links">
-              <h4>Legal</h4>
+
+            <div className="footer-col">
+              <h4>Resources</h4>
               <ul>
+                <li><a href="#">Security Whitepaper</a></li>
+                <li><a href="#">API Documentation</a></li>
                 <li><a href="#">Privacy Policy</a></li>
-                <li><a href="#">Terms of Service</a></li>
-                <li><a href="#">HIPAA Compliance</a></li>
-                <li><a href="#">NDHM Guidelines</a></li>
               </ul>
             </div>
-            
-            <div className="footer-contact">
-              <h4>Contact Us</h4>
+
+            <div className="footer-col">
+              <h4>Connect</h4>
               <ul>
-                <li><Mail size={16} /> support@healthbridge.in</li>
-                <li><Phone size={16} /> +91 800 123 4567</li>
-                <li><MapPin size={16} /> HealthTech Park, Bengaluru, 560100</li>
+                <li><a href="#">LinkedIn</a></li>
+                <li><a href="#">Twitter</a></li>
+                <li><a href="#">Contact Us</a></li>
               </ul>
             </div>
           </div>
           
           <div className="footer-bottom">
-            <p>&copy; {new Date().getFullYear()} HealthBridge India. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} HealthBridge India. Secure Digital Health Infrastructure. Powered by ABDM.</p>
           </div>
         </div>
       </footer>

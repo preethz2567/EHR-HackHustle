@@ -53,6 +53,8 @@ export default function BiometricAuth() {
         );
         if (res.success && res.token) {
           localStorage.setItem('patientToken', res.token);
+          localStorage.setItem('patient_id', res.patient_id);
+          localStorage.setItem('patient_name', res.name);
           setVerifying(false);
           setSuccess(true);
           setTimeout(() => navigate('/dashboard'), 1200);

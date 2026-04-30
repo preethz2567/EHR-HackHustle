@@ -25,7 +25,10 @@ export default function DoctorLogin() {
       const res = await authenticateDoctor(email, password);
       if (res.token) {
         localStorage.setItem('doctorToken', res.token);
-        localStorage.setItem('doctorEmail', email);
+        localStorage.setItem('doctorId', res.doctor_id);
+        localStorage.setItem('doctorEmail', res.email);
+        localStorage.setItem('doctorName', res.name);
+        localStorage.setItem('doctorHospital', res.hospital);
         navigate('/doctor/access');
       } else {
         setError('Authentication failed. Please check your credentials.');

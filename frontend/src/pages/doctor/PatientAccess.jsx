@@ -30,8 +30,11 @@ export default function PatientAccess() {
       localStorage.setItem('doctorSessionToken', accessToken.trim());
       localStorage.setItem('currentPatientId', res.patient_id);
       
-      // Extract patient info from the response for display
       const pd = res.patient_data || {};
+      localStorage.setItem('currentPatientName', pd.name || 'Patient');
+      localStorage.setItem('currentPatientAge', pd.age || 'N/A');
+      
+      // Extract patient info from the response for display
       setPatientInfo({
         name: pd.name || 'Patient',
         age: pd.age || 'N/A',

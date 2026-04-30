@@ -5,7 +5,7 @@ import { generateAccessToken } from '../utils/api';
 const C = { blue: '#1e40af', teal: '#10b981', border: '#e5e7eb', muted: '#6b7280', text: '#111827' };
 
 export default function ShareAccess({ patientId }) {
-  const [email, setEmail] = useState('dr.amit@hospital.com');
+  const [email, setEmail] = useState('dr.sharma@cityhospital.in');
   const [token, setToken] = useState(null);
   const [expiresAt, setExpiresAt] = useState('');
   const [loading, setLoading] = useState(false);

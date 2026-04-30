@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileEdit, ArrowRight, User } from 'lucide-react';
+import { FileEdit, ArrowRight, User, Loader } from 'lucide-react';
+import { analyzePatient } from '../../utils/doctorApi';
 import './DoctorPortal.css';
 
 export default function ChiefComplaint() {
@@ -11,9 +12,13 @@ export default function ChiefComplaint() {
     'Abdominal pain', 'High fever', 'Routine checkup'
   ]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [error, setError] = useState('');
+
   const navigate = useNavigate();
   const patientId = localStorage.getItem('currentPatientId');
+  const patientName = localStorage.getItem('currentPatientName') || 'Patient';
+  const patientAge = localStorage.getItem('currentPatientAge') || 'N/A';
 
   useEffect(() => {
     if (!patientId) {
@@ -21,15 +26,29 @@ export default function ChiefComplaint() {
     }
   }, [patientId, navigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!complaint.trim()) return;
 
-    // Store the chief complaint in local storage to be passed to the dashboard
-    localStorage.setItem('chiefComplaint', complaint);
-    localStorage.setItem('complaintContext', context);
-    
-    navigate('/doctor/dashboard');
+    setIsAnalyzing(true);
+    setError('');
+
+    try {
+      // Store the chief complaint in local storage to be passed to the dashboard
+      localStorage.setItem('chiefComplaint', complaint);
+      localStorage.setItem('complaintContext', context);
+      
+      const analysisData = await analyzePatient(complaint, context);
+      
+      // Store analysis
+      localStorage.setItem('analysis', JSON.stringify(analysisData));
+      
+      navigate('/doctor/dashboard');
+    } catch (err) {
+      setError(err.message || 'Failed to analyze patient. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleCancel = () => {
@@ -53,7 +72,7 @@ export default function ChiefComplaint() {
             </div>
             <div>
               <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Patient Auto-populated</div>
-              <div style={{ fontWeight: 600, color: '#0f172a' }}>Rajesh Patel <span style={{ color: '#94a3b8', fontWeight: 400 }}>| Age: 68 | ID: {patientId}</span></div>
+              <div style={{ fontWeight: 600, color: '#0f172a' }}>{patientName} <span style={{ color: '#94a3b8', fontWeight: 400 }}>| Age: {patientAge} | ID: {patientId}</span></div>
             </div>
           </div>
 
@@ -119,8 +138,12 @@ export default function ChiefComplaint() {
               <button type="button" className="btn-secondary" onClick={handleCancel}>
                 Cancel
               </button>
-              <button type="submit" className="btn-primary" disabled={!complaint.trim()}>
-                Proceed to Analysis <ArrowRight size={18} />
+              <button type="submit" className="btn-primary" disabled={!complaint.trim() || isAnalyzing}>
+                {isAnalyzing ? (
+                  <><Loader size={18} className="spinner" /> AI Analyzing Patient Data...</>
+                ) : (
+                  <>Proceed to Analysis <ArrowRight size={18} /></>
+                )}
               </button>
             </div>
           </form>

@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   HeartPulse, LogOut, CloudDownload, Loader, CheckCircle,
-  Home, FileText, UploadCloud, Share2, History, Settings,
-  Bell, User, ShieldCheck
+  Bell, User, ShieldCheck, HelpCircle, FileText,
+  UploadCloud, Share2, History, Activity
 } from 'lucide-react';
 import { fetchHistoricalData } from '../utils/api';
 import MedicalRecords from '../components/MedicalRecords';
@@ -17,7 +17,8 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('records');
   const [fetching, setFetching] = useState(false);
   const [fetchSuccess, setFetchSuccess] = useState(null);
-  const [patientId] = useState('P001');
+  const [patientId] = useState(localStorage.getItem('patient_id') || 'P001');
+  const patientName = localStorage.getItem('patient_name') || 'Rajesh Kumar';
 
   const [stats] = useState({
     diagnoses: 3, medications: 4, labs: 15,
@@ -27,6 +28,8 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem('patientToken');
+    localStorage.removeItem('patient_id');
+    localStorage.removeItem('patient_name');
     navigate('/login');
   };
 
@@ -36,212 +39,185 @@ export default function Dashboard() {
     try {
       const res = await fetchHistoricalData(patientId);
       if (res.success) {
-        setFetchSuccess(
-          `Data cached successfully! ${res.records_count || 45} records fetched.`
-        );
+        setFetchSuccess(`Synced! ${res.records_count || 45} records found.`);
         window.dispatchEvent(new Event('refreshData'));
       }
     } catch (err) {
-      alert(err.message || 'Failed to fetch historical data');
+      alert(err.message || 'Sync failed');
     } finally {
       setFetching(false);
       setTimeout(() => setFetchSuccess(null), 5000);
     }
   };
 
-  const sidebarLinks = [
-    { id: 'home',     icon: Home,        label: 'Dashboard' },
-    { id: 'records',  icon: FileText,    label: 'Medical Records' },
-    { id: 'upload',   icon: UploadCloud, label: 'Upload Reports' },
-    { id: 'share',    icon: Share2,      label: 'Share Access' },
-    { id: 'history',  icon: History,     label: 'Access History' },
-    { id: 'settings', icon: Settings,    label: 'Settings' },
-  ];
-
-  const go = (id) => {
-    if (['records', 'upload', 'share', 'history'].includes(id)) setActiveTab(id);
-    else setActiveTab('records');
-  };
-
   return (
     <div className="patient-dashboard">
-      {/* ======== Sidebar ======== */}
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <HeartPulse size={26} style={{ color: '#10b981' }} />
-          <span className="brand-text">HealthBridge</span>
+      {/* ══════ Horizontal Top Navbar ══════ */}
+      <header className="topbar">
+        <div className="navbar-brand" onClick={() => navigate('/')}>
+          <HeartPulse size={28} className="text-blue" />
+          <span>HealthBridge</span>
         </div>
 
-        <nav className="sidebar-nav">
-          {sidebarLinks.map((l) => (
-            <button
-              key={l.id}
-              className={`nav-item ${
-                activeTab === l.id || (l.id === 'home' && activeTab === 'records')
-                  ? 'active'
-                  : ''
-              }`}
-              onClick={() => go(l.id)}
-            >
-              <l.icon size={19} />
-              <span>{l.label}</span>
-            </button>
-          ))}
+        <nav className="navbar-nav">
+          <button 
+            className={`nav-link-item ${activeTab === 'home' ? 'active' : ''}`}
+            onClick={() => setActiveTab('home')}
+          >
+            Overview
+          </button>
+          <button 
+            className={`nav-link-item ${activeTab === 'records' ? 'active' : ''}`}
+            onClick={() => setActiveTab('records')}
+          >
+            Medical Records
+          </button>
+          <button 
+            className={`nav-link-item ${activeTab === 'share' ? 'active' : ''}`}
+            onClick={() => setActiveTab('share')}
+          >
+            Share Access
+          </button>
+          <button 
+            className={`nav-link-item ${activeTab === 'history' ? 'active' : ''}`}
+            onClick={() => setActiveTab('history')}
+          >
+            Access History
+          </button>
         </nav>
 
-        <div className="sidebar-footer">
-          <button className="nav-item text-danger" onClick={handleLogout}>
-            <LogOut size={19} />
-            <span>Logout</span>
+        <div className="topbar-right">
+          <button className="icon-btn">
+            <Bell size={20} />
           </button>
-        </div>
-      </aside>
-
-      {/* ======== Main Area ======== */}
-      <div className="main-wrapper">
-        {/* Top bar */}
-        <header className="topbar">
-          <div className="topbar-actions">
-            <button className="icon-btn">
-              <Bell size={19} />
-              <span className="notification-dot" />
+          <div className="user-profile">
+            <div className="avatar">{patientName.charAt(0)}</div>
+            <div className="user-info">
+              <span className="user-name">{patientName}</span>
+              <span className="user-role">ID: {patientId}</span>
+            </div>
+            <button className="icon-btn" onClick={handleLogout} title="Logout" style={{ marginLeft: '1rem' }}>
+              <LogOut size={18} className="text-danger" />
             </button>
-            <div className="user-profile">
-              <div className="avatar"><User size={17} /></div>
-              <div className="user-info">
-                <span className="user-name">Rajesh Patel ({patientId})</span>
-                <span className="user-role">Patient</span>
+          </div>
+        </div>
+      </header>
+
+      {/* ══════ Main Wrapper ══════ */}
+      <main className="main-wrapper fade-in">
+        <div className="page-header">
+          <h1>Welcome back, {patientName.split(' ')[0]}</h1>
+          <p>Your comprehensive health profile and record management.</p>
+        </div>
+
+        {/* Section A — Quick Stats (KPIs) */}
+        <section className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-header">
+              <div className="stat-info">
+                <h3>Unified Records</h3>
+                <div className="stat-value">{stats.diagnoses + stats.medications + stats.labs}</div>
               </div>
+              <div className="stat-icon-wrapper" style={{ background: '#eff6ff' }}>
+                <FileText size={24} color="#3b82f6" />
+              </div>
+            </div>
+            <div className="stat-footer">
+              {stats.diagnoses} Diagnoses · {stats.medications} Meds · {stats.labs} Labs
             </div>
           </div>
-        </header>
 
-        <main className="dashboard-content">
-          <div className="page-header">
-            <h1>Patient Dashboard</h1>
-            <p className="text-muted">
-              Manage your complete medical history securely.
-            </p>
+          <div className="stat-card">
+            <div className="stat-header">
+              <div className="stat-info">
+                <h3>Last Synced</h3>
+                <div className="stat-value" style={{ fontSize: '1.25rem' }}>{stats.lastUpdated.split(' ')[0]}</div>
+              </div>
+              <div className="stat-icon-wrapper" style={{ background: '#f0fdf4' }}>
+                <History size={24} color="#22c55e" />
+              </div>
+            </div>
+            <div className="stat-footer">
+              Updated at {stats.lastUpdated.split(' ')[1]}
+            </div>
           </div>
 
-          {/* Section A — Quick Stats */}
-          <section className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon-wrapper bg-blue-100 text-blue">
-                <FileText size={22} />
-              </div>
+          <div className="stat-card">
+            <div className="stat-header">
               <div className="stat-info">
-                <h3>Records Cached</h3>
-                <p>
-                  {stats.diagnoses} Diagnoses · {stats.medications} Meds ·{' '}
-                  {stats.labs} Labs
-                </p>
+                <h3>Active Consent</h3>
+                <div className="stat-value">{stats.activeAuths} <span style={{ fontSize: '1rem' }}>Doctors</span></div>
+              </div>
+              <div className="stat-icon-wrapper" style={{ background: '#fef3c7' }}>
+                <ShieldCheck size={24} color="#f59e0b" />
               </div>
             </div>
-
-            <div className="stat-card">
-              <div className="stat-icon-wrapper bg-teal-100 text-teal">
-                <History size={22} />
-              </div>
-              <div className="stat-info">
-                <h3>Last Updated</h3>
-                <p>{stats.lastUpdated}</p>
-              </div>
+            <div className="stat-footer">
+              Valid permissions in network
             </div>
+          </div>
+        </section>
 
-            <div className="stat-card">
-              <div className="stat-icon-wrapper bg-purple-100 text-purple">
-                <ShieldCheck size={22} />
+        {/* Section B — Action Grid */}
+        <section className="actions-grid">
+          <div className="action-card" onClick={handleFetchData}>
+            <div className="action-icon">
+              <CloudDownload size={28} />
+            </div>
+            <h3>Sync Data</h3>
+            <p>Pull latest records from connected hospital nodes.</p>
+            {fetching && (
+              <div className="action-status fetching">
+                <Loader size={16} className="spinner" /> Syncing...
               </div>
-              <div className="stat-info">
-                <h3>Active Authorizations</h3>
-                <p>{stats.activeAuths} doctors</p>
+            )}
+            {fetchSuccess && (
+              <div className="action-status success">
+                <CheckCircle size={16} /> {fetchSuccess}
               </div>
-            </div>
-          </section>
+            )}
+          </div>
 
-          {/* Section B — Action Buttons */}
-          <section className="actions-grid">
-            <div className="action-card primary" onClick={handleFetchData}>
-              <CloudDownload size={28} className="action-icon" />
-              <h3>Fetch Historical Data</h3>
-              <p>Pull recent records from all your connected hospitals</p>
-              {fetching && (
-                <div className="action-status fetching">
-                  <Loader size={15} className="spinner" /> Fetching from
-                  Hospital A, B, C…
-                </div>
-              )}
-              {fetchSuccess && (
-                <div className="action-status success">
-                  <CheckCircle size={15} /> {fetchSuccess}
-                </div>
-              )}
+          <div className="action-card" onClick={() => setActiveTab('upload')}>
+            <div className="action-icon" style={{ background: '#f0fdfa', color: '#0d9488' }}>
+              <UploadCloud size={28} />
             </div>
+            <h3>Upload</h3>
+            <p>Add external reports or prescriptions manually.</p>
+          </div>
 
-            <div
-              className="action-card secondary"
-              onClick={() => setActiveTab('upload')}
-            >
-              <UploadCloud size={28} className="action-icon" />
-              <h3>Upload New Report</h3>
-              <p>Add vaccine cards, external lab reports, or discharge summaries</p>
+          <div className="action-card" onClick={() => setActiveTab('share')}>
+            <div className="action-icon" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
+              <Share2 size={28} />
             </div>
+            <h3>Authorize</h3>
+            <p>Grant secure, time-bound access to providers.</p>
+          </div>
+        </section>
 
-            <div
-              className="action-card tertiary"
-              onClick={() => setActiveTab('share')}
-            >
-              <Share2 size={28} className="action-icon" />
-              <h3>Share with Doctor</h3>
-              <p>Generate a secure, time-limited access token for your physician</p>
-            </div>
-          </section>
+        {/* Section C — Content Area */}
+        <div className="content-card">
+          <div className="tabs-header">
+            <button className={`tab-link ${activeTab === 'records' ? 'active' : ''}`} onClick={() => setActiveTab('records')}>Timeline</button>
+            <button className={`tab-link ${activeTab === 'share' ? 'active' : ''}`} onClick={() => setActiveTab('share')}>Consent</button>
+            <button className={`tab-link ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>Log</button>
+          </div>
 
-          {/* Section C — Tabs */}
-          <section className="tabs-section">
-            <div className="content-card">
-              <div className="tabs-header">
-                {[
-                  { id: 'records', label: 'My Medical Records' },
-                  { id: 'upload',  label: 'Upload Reports' },
-                  { id: 'share',   label: 'Share Access' },
-                  { id: 'history', label: 'Access History' },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    className={`tab-link ${activeTab === t.id ? 'active' : ''}`}
-                    onClick={() => setActiveTab(t.id)}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+          <div className="tab-body fade-in">
+            {activeTab === 'records' && <MedicalRecords />}
+            {activeTab === 'upload' && <UploadRecords />}
+            {activeTab === 'share' && <ShareAccess />}
+            {activeTab === 'history' && <AccessHistory />}
+            {activeTab === 'home' && (
+              <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+                <Activity size={48} color="#3b82f6" style={{ margin: '0 auto 1rem' }} />
+                <h3>Health Activity</h3>
+                <p>No recent critical alerts detected in your network.</p>
               </div>
-
-              <div className="tab-body">
-                {activeTab === 'records' && (
-                  <MedicalRecords patientId={patientId} />
-                )}
-                {activeTab === 'upload' && (
-                  <UploadRecords patientId={patientId} />
-                )}
-                {activeTab === 'share' && (
-                  <ShareAccess patientId={patientId} />
-                )}
-                {activeTab === 'history' && (
-                  <AccessHistory patientId={patientId} />
-                )}
-              </div>
-            </div>
-          </section>
-        </main>
-
-        {/* Dashboard Footer */}
-        <footer className="dashboard-footer">
-          <span>Last login: 29-Apr-2026 14:32 · Session: Active</span>
-          <a href="#">Help &amp; Support</a>
-        </footer>
-      </div>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

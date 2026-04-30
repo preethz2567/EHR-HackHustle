@@ -25,17 +25,19 @@ export default function DoctorDashboard() {
 
   const patientId = localStorage.getItem('currentPatientId');
   const sessionId = localStorage.getItem('doctorSessionId');
+  const patientName = localStorage.getItem('currentPatientName') || 'Patient';
+  const patientAge = localStorage.getItem('currentPatientAge') || 'N/A';
   const chiefComplaint = localStorage.getItem('chiefComplaint') || 'Chest pain with shortness of breath';
   const complaintContext = localStorage.getItem('complaintContext') || 'Past 3 hours';
 
-  // Mock patient details based on prompt
+  // Mock patient details based on dynamic data
   const patient = {
-    name: "Rajesh Patel",
-    age: 68,
-    gender: "Male",
-    id: patientId || "P12345",
-    lastVisit: "15-Mar-2024",
-    bloodGroup: "O+"
+    name: patientName,
+    age: patientAge,
+    gender: "Unknown",
+    id: patientId,
+    lastVisit: "Recent",
+    bloodGroup: "N/A"
   };
 
   useEffect(() => {
@@ -489,12 +491,28 @@ export default function DoctorDashboard() {
     }
   };
 
+  const doctorName = localStorage.getItem('doctorName') || 'Dr. Amit Kumar';
+  const doctorHospital = localStorage.getItem('doctorHospital') || 'Cardiologist';
+
   if (loading) {
     return (
       <div className="doctor-auth-container" style={{ background: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <Loader size={40} className="spinner text-teal" style={{ margin: '0 auto 1rem' }} />
           <p style={{ color: '#0c1e3c', fontWeight: 600 }}>Loading patient records...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="doctor-auth-container" style={{ background: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="section-card" style={{ textAlign: 'center', maxWidth: '400px' }}>
+          <AlertTriangle size={48} style={{ color: '#ef4444', margin: '0 auto 1rem' }} />
+          <h2 style={{ color: '#0c1e3c', fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>Access Error</h2>
+          <p style={{ color: '#64748b', marginBottom: '1.5rem' }}>{error}</p>
+          <button className="btn-primary" onClick={() => navigate('/doctor/access')}>Back to Access Page</button>
         </div>
       </div>
     );
@@ -507,7 +525,7 @@ export default function DoctorDashboard() {
           <Stethoscope size={24} style={{ color: '#0d9488' }} />
           <span>HealthBridge India</span>
           <span style={{ fontSize: '0.9rem', fontWeight: 400, marginLeft: '1rem', borderLeft: '1px solid rgba(255,255,255,0.2)', paddingLeft: '1rem' }}>
-            Dr. Amit Kumar <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>(Cardiologist)</span>
+            {doctorName} <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>({doctorHospital})</span>
           </span>
         </div>
         <div className="doctor-actions">

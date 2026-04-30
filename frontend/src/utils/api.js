@@ -54,14 +54,16 @@ export async function fetchApi(endpoint, options = {}) {
 /**
  * Auth functions
  */
-export async function authenticatePatient(patientId, biometricType, biometricData, otp) {
-  return fetchApi('/patient/auth', {
+export async function authenticatePatient(patientId, biometricType, biometricData, otp, email, password) {
+  return fetchApi('/patient/login', {
     method: 'POST',
     body: JSON.stringify({
       patient_id: patientId,
       biometric_type: biometricType,
       biometric_data: biometricData,
       otp: otp,
+      email: email,
+      password: password
     }),
   });
 }
@@ -76,7 +78,7 @@ export async function fetchHistoricalData(patientId) {
 }
 
 export async function getCachedData(patientId) {
-  return fetchApi(`/patient/${patientId}/data`, {
+  return fetchApi(`/patient/${patientId}/my-records`, {
     method: 'GET',
   });
 }
