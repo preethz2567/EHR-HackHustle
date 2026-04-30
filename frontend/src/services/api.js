@@ -1,0 +1,11 @@
+export const setAuthToken = () => {};
+export const getAuthToken = () => {};
+export const patientLogin = () => {};
+export const patientFetch = () => {};
+export const patientUploadReport = () => {};
+export const doctorLogin = () => {};
+export const doctorVerifyToken = () => {};
+export const doctorGetPatientData = () => {};
+export const doctorAnalyze = () => {};
+export const doctorGetDashboard = () => {};
+export const doctorExportPDF = () => {};

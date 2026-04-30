@@ -105,8 +105,9 @@ def decode_token(token: str) -> dict:
 # Patient authentication
 # ---------------------------------------------------------------------------
 
-def authenticate_patient(patient_id: str, biometric_type: str,
-                         biometric_data: str, otp: str) -> dict:
+def authenticate_patient(patient_id: str, biometric_type: str = None,
+                         biometric_data: str = None, otp: str = None,
+                         email: str = None, password: str = None) -> dict:
     """
     Simulate biometric + OTP verification for a patient.
 
@@ -130,8 +131,23 @@ def authenticate_patient(patient_id: str, biometric_type: str,
         }
 
     patient = PATIENT_BIOMETRIC_STORE[patient_id]
+    
+    # 2. Handle Email/Password bypass for demo/testing
+    if email and password:
+        if patient.get("email") == email and password == "password123":
+             token = generate_token({"sub": patient_id, "role": "patient", "name": patient["name"]}, Config.PATIENT_TOKEN_EXPIRY)
+             log_patient_action(patient_id, "login", {"message": "Authenticated via email/password"}, "success")
+             return {
+                "success": True,
+                "token": token,
+                "patient_id": patient_id,
+                "name": patient["name"],
+                "message": "Authentication successful",
+             }
+        else:
+            return {"success": False, "message": "Invalid email or password", "patient_id": patient_id}
 
-    # 2. Verify biometric (simulated hash comparison)
+    # 3. Verify biometric (simulated hash comparison)
     if biometric_type not in ("fingerprint", "iris"):
         log_patient_action(patient_id, "login", {"message": f"Invalid biometric type: {biometric_type}"}, "failed")
         return {

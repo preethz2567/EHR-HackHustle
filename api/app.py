@@ -78,10 +78,11 @@ ANALYSIS_CACHE: dict = {}
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
-    CORS(app)
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     # Initialize the session background cleanup
     init_session_manager()
+
 
     # -------------------------------------------------------------------
     # HEALTH CHECK
@@ -1426,4 +1427,4 @@ if __name__ == "__main__":
     print("    P002: Priya Sharma (priya@example.com / password123)")
     print("    P003: Amit Patel   (amit@example.com   / password123)")
     print("=" * 65)
-    app.run(host="0.0.0.0", port=5000, debug=Config.DEBUG)
+    app.run(host="0.0.0.0", port=8080, debug=Config.DEBUG)

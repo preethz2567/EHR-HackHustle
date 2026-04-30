@@ -1,5 +1,5 @@
 // src/utils/doctorApi.js
-const API_URL = 'http://127.0.0.1:5000/api';
+const API_URL = 'http://localhost:8080/api';
 
 /**
  * Standard fetch wrapper for doctor endpoints
@@ -23,7 +23,8 @@ export async function fetchDoctorApi(endpoint, options = {}, tokenType = 'doctor
       headers,
     });
   } catch (err) {
-    throw new Error('Connection failed. Please check your network and retry.');
+    console.error('Doctor API Fetch Error:', err);
+    throw new Error(`Connection failed: ${err.message}. Please check if the backend is running at ${API_URL}`);
   }
 
   if (response.status === 401) {

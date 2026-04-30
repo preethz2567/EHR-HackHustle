@@ -1,31 +1,31 @@
-# PS-1: Privacy-Preserving Patient Memory Layer
+# HealthBridge EHR - Unified Patient Records System
 
-Unified patient context synthesized from federated data sources
-with patient consent controls and audit transparency.
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-Development-yellow)
 
-## Quick Start
-- Clone: `git clone [repo]`
-- Setup: `pip install -r requirements.txt`
-- Test: `python tests/test_data.py`
-- API: `python api/app.py`
-- Frontend: `cd frontend && npm start`
+## Overview
 
+HealthBridge is a privacy-first, federated Electronic Health Record (EHR) system that unifies patient data across multiple healthcare providers while maintaining explicit patient consent and preventing centralized data breaches.
 
-
-
-
+### Key Features
+- **Federated Architecture**: Query hospitals A, B, C simultaneously without centralizing data
+- **Patient Consent Control**: Granular control over data access by category (diagnoses, medications, labs, etc.)
+- **AI-Powered Synthesis**: 4 specialized agents analyze patient data, orchestrator creates unified narrative
+- **Real-Time Audit Logging**: Every access logged for transparency and compliance
+- **Session-Based Access**: Doctors get 30-min sessions with automatic logout
+- **Manual Report Upload**: Patients can upload vaccine cards, lab reports, discharge summaries
 
 ## Architecture
-- Federated data gateway (3 hospitals)
-- Consent-gated privacy enforcement
-- 4-agent orchestration network
-- Real-time synthesis with audit trail
 
-## Team
-- Person A: Lead + Data Systems
-- Person B: Backend/Orchestration
-- Person C: Frontend/UI
-- Person D: Data & Privacy
-
-## Status
-[Update as you progress]
+```text
+Patient Portal (React)
+    ↓
+Backend API (Flask)
+    ├─ Auth Service (JWT)
+    ├─ Data Service (Federated Query)
+    ├─ Agent Service (AI Analysis)
+    ├─ Export Service (PDF Generation)
+    └─ Audit Service (Logging)
+    ↓
+Doctor Portal (React)
+```
